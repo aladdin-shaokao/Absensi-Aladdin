@@ -64,23 +64,14 @@
 
         <!-- Content Area -->
         <main class="max-w-5xl mx-auto px-4 mt-8">
-            <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-                <div class="p-5 border-b border-slate-200 flex justify-between items-center">
-                    <h3 id="tableTitle" class="font-bold text-slate-800 text-base">Riwayat Kehadiran Bulan Ini</h3>
-                    <span class="text-xs bg-red-50 text-red-600 px-3 py-1 rounded-full font-semibold">Data Fingerprint</span>
-                </div>
-                <div class="overflow-x-auto">
-                    <table class="w-full text-left border-collapse text-xs">
-                        <thead>
-                            <tr id="tableHeaderRow" class="bg-slate-50 text-slate-500 border-b border-slate-200">
-                                <!-- Kolom dinamis berdasarkan role -->
-                            </tr>
-                        </thead>
-                        <tbody id="attendanceTableBody">
-                            <!-- Data dimuat lewat JavaScript -->
-                        </tbody>
-                    </table>
-                </div>
+            <div class="flex justify-between items-center mb-4">
+                <h3 id="tableTitle" class="font-bold text-slate-800 text-base">Riwayat Kehadiran</h3>
+                <span class="text-xs bg-red-50 text-red-600 px-3 py-1 rounded-full font-semibold">Data Fingerprint</span>
+            </div>
+            
+            <!-- Container Daftar Bulan / Accordion -->
+            <div id="accordionContainer" class="space-y-4">
+                <!-- Data akan dimuat secara dinamis ke sini -->
             </div>
         </main>
     </div>
@@ -137,32 +128,8 @@
         }
 
         async function fetchAttendanceData(user) {
-            const tbody = document.getElementById('attendanceTableBody');
-            const headerRow = document.getElementById('tableHeaderRow');
-            
-            tbody.innerHTML = `<tr><td colspan="7" class="p-6 text-center text-slate-400">Memuat data dari Google Sheet...</td></tr>`;
-
-            // Atur header tabel dinamis (Jika Manager, tampilkan kolom Nama Karyawan)
-            if (user.role === 'Manager') {
-                headerRow.innerHTML = `
-                    <th class="p-3">Nama Karyawan</th>
-                    <th class="p-3">Tanggal</th>
-                    <th class="p-3">Status Kerja</th>
-                    <th class="p-3">Masuk (In)</th>
-                    <th class="p-3">Keluar (Out)</th>
-                    <th class="p-3">Total Jam</th>
-                    <th class="p-3">Keterangan</th>
-                `;
-            } else {
-                headerRow.innerHTML = `
-                    <th class="p-3">Tanggal</th>
-                    <th class="p-3">Status Kerja</th>
-                    <th class="p-3">Masuk (In)</th>
-                    <th class="p-3">Keluar (Out)</th>
-                    <th class="p-3">Total Jam</th>
-                    <th class="p-3">Keterangan</th>
-                `;
-            }
+            const container = document.getElementById('accordionContainer');
+            container.innerHTML = `<div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 text-center text-slate-400">Memuat data dari Google Sheet...</div>`;
 
             try {
                 const response = await fetch(WEB_APP_URL, {
@@ -172,42 +139,116 @@
                 const result = await response.json();
 
                 if (result.success && result.data.length > 0) {
-                    tbody.innerHTML = "";
+                    // 1. Urutkan data dari tanggal terbaru ke terlama (Descending) -> Baris teratas adalah hari ini
+                    result.data.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+                    // 2. Kelompokkan data berdasarkan Bulan & Tahun (Format: 'YYYY-MM')
+                    let groupedData = {};
                     result.data.forEach(row => {
-                        let badgeColor = row.status === 'ON-TIME' || row.status === 'Good' ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600';
-                        let formattedDate = row.date ? row.date.split('T')[0] : '-';
-                        
-                        if (user.role === 'Manager') {
-                            tbody.innerHTML += `
-                                <tr class="border-b border-slate-100 hover:bg-slate-50">
-                                    <td class="p-3 font-semibold text-slate-700">${row.name}</td>
-                                    <td class="p-3">${formattedDate}</td>
-                                    <td class="p-3 font-medium">${row.workingStatus || '-'}</td>
-                                    <td class="p-3 text-emerald-600 font-semibold">${row.entryTime}</td>
-                                    <td class="p-3 text-rose-600 font-semibold">${row.exitTime}</td>
-                                    <td class="p-3">${row.workHours}</td>
-                                    <td class="p-3"><span class="px-2 py-1 rounded text-[10px] font-semibold ${badgeColor}">${row.status}</span></td>
-                                </tr>
-                            `;
-                        } else {
-                            tbody.innerHTML += `
-                                <tr class="border-b border-slate-100 hover:bg-slate-50">
-                                    <td class="p-3">${formattedDate}</td>
-                                    <td class="p-3 font-medium">${row.workingStatus || '-'}</td>
-                                    <td class="p-3 text-emerald-600 font-semibold">${row.entryTime}</td>
-                                    <td class="p-3 text-rose-600 font-semibold">${row.exitTime}</td>
-                                    <td class="p-3">${row.workHours}</td>
-                                    <td class="p-3"><span class="px-2 py-1 rounded text-[10px] font-semibold ${badgeColor}">${row.status}</span></td>
-                                </tr>
-                            `;
+                        if (!row.date || row.date === '-') return;
+                        let monthKey = row.date.substring(0, 7); // Contoh: "2026-10"
+                        if (!groupedData[monthKey]) {
+                            groupedData[monthKey] = [];
                         }
+                        groupedData[monthKey].push(row);
                     });
+
+                    // Dapatkan bulan berjalan saat ini secara otomatis (misal: "2026-10")
+                    let currentDateObj = new Date();
+                    let currentMonthKey = currentDateObj.getFullYear() + '-' + String(currentDateObj.getMonth() + 1).padStart(2, '0');
+
+                    container.innerHTML = "";
+                    
+                    // Urutkan kunci bulan dari yang terbaru (Descending)
+                    let sortedMonths = Object.keys(groupedData).sort().reverse();
+
+                    sortedMonths.forEach(monthKey => {
+                        let rows = groupedData[monthKey];
+                        let isOpen = (monthKey === currentMonthKey); // Otomatis terbuka jika bulan berjalan
+                        
+                        // Format Judul Bulan (Bahasa Indonesia)
+                        let [year, monthNum] = monthKey.split('-');
+                        let dateObj = new Date(year, monthNum - 1, 1);
+                        let monthName = dateObj.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
+                        let contentId = `content-${monthKey}`;
+                        let iconId = `icon-${monthKey}`;
+
+                        let tableHeaders = user.role === 'Manager' 
+                            ? `<th class="p-3">Nama Karyawan</th><th class="p-3">Tanggal</th><th class="p-3">Status Kerja</th><th class="p-3">Masuk (In)</th><th class="p-3">Keluar (Out)</th><th class="p-3">Total Jam</th><th class="p-3">Keterangan</th>`
+                            : `<th class="p-3">Tanggal</th><th class="p-3">Status Kerja</th><th class="p-3">Masuk (In)</th><th class="p-3">Keluar (Out)</th><th class="p-3">Total Jam</th><th class="p-3">Keterangan</th>`;
+
+                        let tableRowsHtml = "";
+                        rows.forEach(row => {
+                            let badgeColor = row.status === 'ON-TIME' || row.status === 'Good' ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600';
+                            let formattedDate = row.date ? row.date.split('T')[0] : '-';
+                            
+                            if (user.role === 'Manager') {
+                                tableRowsHtml += `
+                                    <tr class="border-b border-slate-100 hover:bg-slate-50">
+                                        <td class="p-3 font-semibold text-slate-700">${row.name}</td>
+                                        <td class="p-3">${formattedDate}</td>
+                                        <td class="p-3 font-medium">${row.workingStatus || '-'}</td>
+                                        <td class="p-3 text-emerald-600 font-semibold">${row.entryTime}</td>
+                                        <td class="p-3 text-rose-600 font-semibold">${row.exitTime}</td>
+                                        <td class="p-3 font-mono">${row.workHours}</td>
+                                        <td class="p-3"><span class="px-2 py-1 rounded text-[10px] font-semibold ${badgeColor}">${row.status}</span></td>
+                                    </tr>
+                                `;
+                            } else {
+                                tableRowsHtml += `
+                                    <tr class="border-b border-slate-100 hover:bg-slate-50">
+                                        <td class="p-3">${formattedDate}</td>
+                                        <td class="p-3 font-medium">${row.workingStatus || '-'}</td>
+                                        <td class="p-3 text-emerald-600 font-semibold">${row.entryTime}</td>
+                                        <td class="p-3 text-rose-600 font-semibold">${row.exitTime}</td>
+                                        <td class="p-3 font-mono">${row.workHours}</td>
+                                        <td class="p-3"><span class="px-2 py-1 rounded text-[10px] font-semibold ${badgeColor}">${row.status}</span></td>
+                                    </tr>
+                                `;
+                            }
+                        });
+
+                        // Render Kotak Accordion Per Bulan
+                        container.innerHTML += `
+                            <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                                <button onclick="toggleAccordion('${contentId}', '${iconId}')" class="w-full p-4 bg-slate-50 hover:bg-slate-100 flex justify-between items-center transition border-b border-slate-200 text-left">
+                                    <div class="flex items-center space-x-2">
+                                        <span class="font-bold text-slate-800 text-sm sm:text-base capitalize">Absensi ${monthName}</span>
+                                        <span class="text-xs bg-red-100 text-red-600 px-2.5 py-0.5 rounded-full font-semibold">${rows.length} Hari</span>
+                                    </div>
+                                    <svg id="${iconId}" class="w-5 h-5 text-slate-500 transform ${isOpen ? 'rotate-180' : ''} transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                                    </svg>
+                                </button>
+                                <div id="${contentId}" class="${isOpen ? '' : 'hidden'} overflow-x-auto">
+                                    <table class="w-full text-left border-collapse text-xs">
+                                        <thead>
+                                            <tr class="bg-slate-50/50 text-slate-500 border-b border-slate-200">
+                                                ${tableHeaders}
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            ${tableRowsHtml}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        `;
+                    });
+
                 } else {
-                    tbody.innerHTML = `<tr><td colspan="7" class="p-6 text-center text-slate-400">Belum ada catatan absensi.</td></tr>`;
+                    container.innerHTML = `<div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 text-center text-slate-400">Belum ada catatan absensi.</div>`;
                 }
             } catch (err) {
-                tbody.innerHTML = `<tr><td colspan="7" class="p-6 text-center text-red-500">Gagal memuat data absensi.</td></tr>`;
+                container.innerHTML = `<div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 text-center text-red-500">Gagal memuat data absensi.</div>`;
             }
+        }
+
+        function toggleAccordion(contentId, iconId) {
+            const content = document.getElementById(contentId);
+            const icon = document.getElementById(iconId);
+            content.classList.toggle('hidden');
+            icon.classList.toggle('rotate-180');
         }
 
         function logout() {
