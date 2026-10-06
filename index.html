@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Portal Absensi - Aladdin Shao Kao</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Memuat SweetAlert2 untuk Popup Pemberitahuan Lembur -->
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>body { font-family: 'Poppins', sans-serif; }</style>
 </head>
@@ -72,6 +74,8 @@
     <script>
         const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbxFwt1rTArWbj40k5ioM39uR9XHwhfFCqyFOaShaTxU9g2twB3MnyESXgWCZQyl1qeu/exec";
 
+        let currentUserData = null; // Menyimpan data user yang sedang login untuk pengecekan role
+
         async function handleLogin(e) {
             e.preventDefault();
             const username = document.getElementById('username').value;
@@ -91,6 +95,7 @@
                 const result = await response.json();
 
                 if (result.success) {
+                    currentUserData = result.user; // Simpan ke variabel global
                     localStorage.setItem('user', JSON.stringify(result.user));
                     loadDashboard(result.user);
                 } else {
@@ -107,6 +112,7 @@
         }
 
         function loadDashboard(user) {
+            currentUserData = user;
             document.getElementById('loginPage').classList.add('hidden');
             document.getElementById('dashboardPage').classList.remove('hidden');
             document.getElementById('welcomeName').innerText = `Halo, ${user.name}`;
@@ -132,6 +138,9 @@
 
                 if (result.success && result.data.length > 0) {
                     result.data.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+                    // Jalankan pengecekan status lembur Pending & batasan H+3 otomatis setelah data diterima
+                    checkPendingOvertime(result.data);
 
                     let groupedData = {};
                     result.data.forEach(row => {
@@ -176,14 +185,14 @@
                                     let currentStatus = row.overtimeStatus || 'Pending';
                                     let btnClass = 'bg-amber-100 text-amber-700 hover:bg-amber-200';
                                     if (currentStatus === 'Approved') btnClass = 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200';
-                                    if (currentStatus === 'Reject') btnClass = 'bg-rose-100 text-rose-700 hover:bg-rose-200';
+                                    if (currentStatus === 'Reject' || currentStatus.includes('Rejected')) btnClass = 'bg-rose-100 text-rose-700 hover:bg-rose-200';
 
                                     otStatusBadge = `<button onclick="toggleOvertime(this, ${row.rowIndex})" class="px-2.5 py-1 rounded text-[10px] font-bold transition ${btnClass}">${currentStatus}</button>`;
                                 } else {
                                     let currentStatus = row.overtimeStatus || 'Pending';
                                     let badgeStyle = 'bg-amber-50 text-amber-600';
                                     if (currentStatus === 'Approved') badgeStyle = 'bg-emerald-50 text-emerald-600';
-                                    if (currentStatus === 'Reject') badgeStyle = 'bg-rose-50 text-rose-600';
+                                    if (currentStatus === 'Reject' || currentStatus.includes('Rejected')) badgeStyle = 'bg-rose-50 text-rose-600';
 
                                     otStatusBadge = `<span class="px-2 py-1 rounded text-[10px] font-semibold ${badgeStyle}">${currentStatus}</span>`;
                                 }
@@ -256,6 +265,59 @@
             }
         }
 
+        // --- FITUR BARU: PENGECEKAN LEMBUR PENDING & BATAS MAX H+3 ---
+        function checkPendingOvertime(attendanceDataList) {
+            // Jika yang login adalah Manager, lewati popup pemberitahuan karyawan
+            if (currentUserData && currentUserData.role === "Manager") {
+                return;
+            }
+
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+
+            let hasPendingOvertime = false;
+            let pendingCount = 0;
+
+            attendanceDataList.forEach(function(item) {
+                // Pastikan ada lembur (> 0) dan statusnya masih "Pending"
+                if (item.overtime && item.overtime > 0 && item.overtimeStatus && item.overtimeStatus.toLowerCase() === "pending") {
+                    
+                    let attendanceDate = new Date(item.date);
+                    attendanceDate.setHours(0, 0, 0, 0);
+
+                    // Hitung selisih hari dari tanggal lembur ke hari ini
+                    let diffTime = today.getTime() - attendanceDate.getTime();
+                    let diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+
+                    // Jika masih dalam rentang H+3
+                    if (diffDays <= 3) {
+                        hasPendingOvertime = true;
+                        pendingCount++;
+                    } else {
+                        // Jika melewati H+3, otomatis ubah statusnya menjadi Rejected (Expired)
+                        item.overtimeStatus = "Rejected (Expired)";
+                    }
+                }
+            });
+
+            // Tampilkan popup pemberitahuan jika ada data lembur pending dalam batas H+3
+            if (hasPendingOvertime) {
+                if (typeof Swal !== 'undefined') {
+                    Swal.fire({
+                        icon: 'warning',
+                        title: 'Pemberitahuan Lembur',
+                        html: `Anda mempunyai <b>${pendingCount}</b> data lemburan yang masih berstatus <b>Pending</b>.<br><br>` +
+                              `Silakan segera menghubungi Manager untuk meminta Approval.<br><br>` +
+                              `<span class="text-red-600 font-semibold text-xs">Note: Batas maximum Approved adalah H+3. Jika melewati batas tersebut, maka status Pending akan otomatis berubah menjadi Reject.</span>`,
+                        confirmButtonText: 'Baik, Mengerti',
+                        confirmButtonColor: '#dc2626'
+                    });
+                } else {
+                    alert(`PEMBERITAHUAN:\nAnda mempunyai ${pendingCount} data lemburan yang masih status Pending. Silakan menghubungi Manager untuk meminta Approved.\n\nNote: Batas maximum Approved adalah H+3. Jika melewati batas tersebut, maka status Pending akan otomatis berubah menjadi Reject.`);
+                }
+            }
+        }
+
         function toggleOvertime(btn, rowIndex) {
             let currentText = btn.innerText;
             let nextStatus = "";
@@ -289,6 +351,7 @@
         }
 
         function logout() {
+            currentUserData = null;
             localStorage.removeItem('user');
             document.getElementById('dashboardPage').classList.add('hidden');
             document.getElementById('loginPage').classList.remove('hidden');
@@ -299,7 +362,8 @@
         window.onload = function() {
             const savedUser = localStorage.getItem('user');
             if (savedUser) {
-                loadDashboard(JSON.parse(savedUser));
+                currentUserData = JSON.parse(savedUser);
+                loadDashboard(currentUserData);
             }
         }
     </script>
