@@ -14,7 +14,6 @@
     <div id="loginPage" class="min-h-screen flex flex-col items-center justify-center p-4">
         <div class="bg-white rounded-2xl shadow-xl w-full max-w-md p-8 border border-slate-200">
             <div class="text-center mb-6">
-                <!-- LOGO ALADDIN SHAO KAO -->
                 <div class="flex justify-center mb-0">
                     <div class="w-40 h-40 flex items-center justify-center overflow-hidden">
                         <img src="logo_aladdin.png" alt="Logo Aladdin Shao Kao" class="max-h-full max-w-full object-contain">
@@ -40,7 +39,6 @@
             <div id="loginError" class="mt-4 text-center text-xs text-red-500 font-medium hidden"></div>
         </div>
 
-        <!-- FOOTER COPYRIGHT -->
         <footer class="mt-6 text-center text-xs text-slate-400 font-medium">
             &copy; 2026 Aladdin Management System
         </footer>
@@ -48,7 +46,6 @@
 
     <!-- HALAMAN DASHBOARD -->
     <div id="dashboardPage" class="hidden min-h-screen pb-12">
-        <!-- Topbar -->
         <header class="bg-white shadow-sm border-b border-slate-200 px-6 py-4 flex justify-between items-center">
             <div class="flex items-center space-x-3">
                 <img src="logo_aladdin.png" alt="Logo" class="w-20 h-20 object-contain">
@@ -62,17 +59,13 @@
             </button>
         </header>
 
-        <!-- Content Area -->
         <main class="max-w-6xl mx-auto px-4 mt-8">
             <div class="flex justify-between items-center mb-4">
                 <h3 id="tableTitle" class="font-bold text-slate-800 text-base">Riwayat Kehadiran & Lembur</h3>
                 <span class="text-xs bg-red-50 text-red-600 px-3 py-1 rounded-full font-semibold">Data Fingerprint</span>
             </div>
             
-            <!-- Container Daftar Bulan / Accordion -->
-            <div id="accordionContainer" class="space-y-4">
-                <!-- Data akan dimuat secara dinamis ke sini -->
-            </div>
+            <div id="accordionContainer" class="space-y-4"></div>
         </main>
     </div>
 
@@ -138,7 +131,6 @@
                 const result = await response.json();
 
                 if (result.success && result.data.length > 0) {
-                    // Urutkan data dari tanggal terbaru ke terlama (Descending) -> Hari ini di atas
                     result.data.sort((a, b) => new Date(b.date) - new Date(a.date));
 
                     let groupedData = {};
@@ -168,8 +160,8 @@
                         let iconId = `icon-${monthKey}`;
 
                         let tableHeaders = user.role === 'Manager' 
-                            ? `<th class="p-3">Nama Karyawan</th><th class="p-3">Tanggal</th><th class="p-3">Masuk</th><th class="p-3">Keluar</th><th class="p-3">Total Jam</th><th class="p-3">Lembur</th><th class="p-3">Status Lembur</th><th class="p-3">Keterangan</th>`
-                            : `<th class="p-3">Tanggal</th><th class="p-3">Masuk</th><th class="p-3">Keluar</th><th class="p-3">Total Jam</th><th class="p-3">Lembur</th><th class="p-3">Status Lembur</th><th class="p-3">Keterangan</th>`;
+                            ? `<th class="p-3">Nama Karyawan</th><th class="p-3">Tanggal</th><th class="p-3">Status Kerja</th><th class="p-3">Masuk</th><th class="p-3">Keluar</th><th class="p-3">Total Jam</th><th class="p-3">Lembur</th><th class="p-3">Status Lembur</th><th class="p-3">Keterangan</th>`
+                            : `<th class="p-3">Tanggal</th><th class="p-3">Status Kerja</th><th class="p-3">Masuk</th><th class="p-3">Keluar</th><th class="p-3">Total Jam</th><th class="p-3">Lembur</th><th class="p-3">Status Lembur</th><th class="p-3">Keterangan</th>`;
 
                         let tableRowsHtml = "";
                         rows.forEach(row => {
@@ -204,6 +196,7 @@
                                     <tr class="border-b border-slate-100 hover:bg-slate-50">
                                         <td class="p-3 font-semibold text-slate-700">${row.name}</td>
                                         <td class="p-3">${formattedDate}</td>
+                                        <td class="p-3 font-medium">${row.workingStatus}</td>
                                         <td class="p-3 text-emerald-600 font-semibold">${row.entryTime}</td>
                                         <td class="p-3 text-rose-600 font-semibold">${row.exitTime}</td>
                                         <td class="p-3 font-mono">${row.workHours}</td>
@@ -216,6 +209,7 @@
                                 tableRowsHtml += `
                                     <tr class="border-b border-slate-100 hover:bg-slate-50">
                                         <td class="p-3">${formattedDate}</td>
+                                        <td class="p-3 font-medium">${row.workingStatus}</td>
                                         <td class="p-3 text-emerald-600 font-semibold">${row.entryTime}</td>
                                         <td class="p-3 text-rose-600 font-semibold">${row.exitTime}</td>
                                         <td class="p-3 font-mono">${row.workHours}</td>
@@ -262,7 +256,6 @@
             }
         }
 
-        // Fungsi interaktif Manager: Pending -> Approved -> Reject
         function toggleOvertime(btn, rowIndex) {
             let currentText = btn.innerText;
             let nextStatus = "";
