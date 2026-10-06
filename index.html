@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Portal Absensi - Aladdin Shao Kao</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>body { font-family: 'Poppins', sans-serif; }</style>
+</head>
+<body class="bg-slate-100 text-slate-800">
+
+    <!-- HALAMAN LOGIN -->
+    <div id="loginPage" class="min-h-screen flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl shadow-xl w-full max-w-md p-8 border border-slate-200">
+            <div class="text-center mb-8">
+                <h1 class="text-2xl font-bold text-red-600">Aladdin Shao Kao</h1>
+                <p class="text-sm text-slate-500 mt-1">Portal Login Absensi Karyawan</p>
+            </div>
+            
+            <form id="loginForm" onsubmit="handleLogin(event)" class="space-y-4">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">Username / ID Karyawan</label>
+                    <input type="text" id="username" required class="w-full px-4 py-3 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-red-500 text-sm">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">Password</label>
+                    <input type="password" id="password" required class="w-full px-4 py-3 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-red-500 text-sm">
+                </div>
+                <button type="submit" id="loginBtn" class="w-full bg-red-600 hover:bg-red-700 text-white font-semibold py-3 rounded-lg transition text-sm shadow-md">
+                    Masuk Portal
+                </button>
+            </form>
+            <div id="loginError" class="mt-4 text-center text-xs text-red-500 font-medium hidden"></div>
+        </div>
+    </div>
+
+    <!-- HALAMAN DASHBOARD (Tersembunyi sebelum login) -->
+    <div id="dashboardPage" class="hidden min-h-screen pb-12">
+        <!-- Topbar -->
+        <header class="bg-white shadow-sm border-b border-slate-200 px-6 py-4 flex justify-between items-center">
+            <div>
+                <h2 id="welcomeName" class="font-bold text-lg text-slate-800">Halo, Karyawan</h2>
+                <p class="text-xs text-slate-500">Cabang: PIK2 / Serpong</p>
+            </div>
+            <button onclick="logout()" class="bg-slate-100 hover:bg-red-50 text-red-600 text-xs font-semibold px-4 py-2 rounded-lg transition border border-slate-200">
+                Keluar
+            </button>
+        </header>
+
+        <!-- Content Area -->
+        <main class="max-w-4xl mx-auto px-4 mt-8">
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                <div class="p-5 border-b border-slate-200 flex justify-between items-center">
+                    <h3 class="font-bold text-slate-800 text-base">Riwayat Kehadiran Bulan Ini</h3>
+                    <span class="text-xs bg-red-50 text-red-600 px-3 py-1 rounded-full font-semibold">Data Fingerprint</span>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse text-xs">
+                        <thead>
+                            <tr class="bg-slate-50 text-slate-500 border-b border-slate-200">
+                                <th class="p-3">Tanggal</th>
+                                <th class="p-3">Status Kerja</th>
+                                <th class="p-3">Masuk (In)</th>
+                                <th class="p-3">Keluar (Out)</th>
+                                <th class="p-3">Total Jam</th>
+                                <th class="p-3">Keterangan</th>
+                            </tr>
+                        </thead>
+                        <tbody id="attendanceTableBody">
+                            <!-- Data akan dimuat lewat JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        // Masukkan URL Web App Google Apps Script Anda di sini setelah di-deploy
+        const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbxLce5OHnZgW8QG-JKZV3YvuulqAh5WvKONJZ7iGfyUmpzU9XKZl1oL0OsxE18G0DWL/exec";
+
+        async function handleLogin(e) {
+            e.preventDefault();
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            const btn = document.getElementById('loginBtn');
+            const errorDiv = document.getElementById('loginError');
+
+            btn.disabled = true;
+            btn.innerText = "Memeriksa...";
+            errorDiv.classList.add('hidden');
+
+            try {
+                const response = await fetch(WEB_APP_URL, {
+                    method: 'POST',
+                    body: JSON.stringify({ action: "login", username, password })
+                });
+                const result = await response.json();
+
+                if (result.success) {
+                    localStorage.setItem('user', JSON.stringify(result.user));
+                    loadDashboard(result.user);
+                } else {
+                    errorDiv.innerText = result.message || "Gagal masuk. Periksa kembali data Anda.";
+                    errorDiv.classList.remove('hidden');
+                }
+            } catch (err) {
+                errorDiv.innerText = "Terjadi kesalahan koneksi ke server.";
+                errorDiv.classList.remove('hidden');
+            } finally {
+                btn.disabled = false;
+                btn.innerText = "Masuk Portal";
+            }
+        }
+
+        function loadDashboard(user) {
+            document.getElementById('loginPage').classList.add('hidden');
+            document.getElementById('dashboardPage').classList.remove('hidden');
+            document.getElementById('welcomeName').innerText = `Halo, ${user.name}`;
+            fetchAttendanceData(user.id);
+        }
+
+        async function fetchAttendanceData(idKaryawan) {
+            const tbody = document.getElementById('attendanceTableBody');
+            tbody.innerHTML = `<tr><td colspan="6" class="p-6 text-center text-slate-400">Memuat data dari Google Sheet...</td></tr>`;
+
+            try {
+                const response = await fetch(WEB_APP_URL, {
+                    method: 'POST',
+                    body: JSON.stringify({ action: "getAttendance", idKaryawan })
+                });
+                const result = await response.json();
+
+                if (result.success && result.data.length > 0) {
+                    tbody.innerHTML = "";
+                    result.data.forEach(row => {
+                        let badgeColor = row.status === 'ON-TIME' || row.status === 'Good' ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600';
+                        tbody.innerHTML += `
+                            <tr class="border-b border-slate-100 hover:bg-slate-50">
+                                <td class="p-3">${row.date.split('T')[0]}</td>
+                                <td class="p-3 font-medium">${row.workingStatus}</td>
+                                <td class="p-3 text-emerald-600 font-semibold">${row.entryTime}</td>
+                                <td class="p-3 text-rose-600 font-semibold">${row.exitTime}</td>
+                                <td class="p-3">${row.workHours}</td>
+                                <td class="p-3"><span class="px-2 py-1 rounded text-[10px] font-semibold ${badgeColor}">${row.status}</span></td>
+                            </tr>
+                        `;
+                    });
+                } else {
+                    tbody.innerHTML = `<tr><td colspan="6" class="p-6 text-center text-slate-400">Belum ada catatan absensi untuk ID ini.</td></tr>`;
+                }
+            } catch (err) {
+                tbody.innerHTML = `<tr><td colspan="6" class="p-6 text-center text-red-500">Gagal memuat data absensi.</td></tr>`;
+            }
+        }
+
+        function logout() {
+            localStorage.removeItem('user');
+            document.getElementById('dashboardPage').classList.add('hidden');
+            document.getElementById('loginPage').classList.remove('hidden');
+            document.getElementById('username').value = "";
+            document.getElementById('password').value = "";
+        }
+
+        // Cek sesi tersimpan saat halaman dibuka
+        window.onload = function() {
+            const savedUser = localStorage.getItem('user');
+            if (savedUser) {
+                loadDashboard(JSON.parse(savedUser));
+            }
+        }
+    </script>
+</body>
+</html>
