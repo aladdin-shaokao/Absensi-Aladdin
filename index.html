@@ -139,7 +139,7 @@
                 if (result.success && result.data.length > 0) {
                     result.data.sort((a, b) => new Date(b.date) - new Date(a.date));
 
-                    // Jalankan pengecekan status lembur Pending & batasan H+3 otomatis setelah data diterima
+                    // Jalankan pengecekan status lembur Pending & batasan H+10 otomatis setelah data diterima
                     checkPendingOvertime(result.data);
 
                     let groupedData = {};
@@ -265,7 +265,7 @@
             }
         }
 
-        // --- FITUR BARU: PENGECEKAN LEMBUR PENDING & BATAS MAX H+3 ---
+        // --- FITUR PENGECEKAN LEMBUR PENDING & BATAS MAX H+10 ---
         function checkPendingOvertime(attendanceDataList) {
             // Jika yang login adalah Manager, lewati popup pemberitahuan karyawan
             if (currentUserData && currentUserData.role === "Manager") {
@@ -289,18 +289,18 @@
                     let diffTime = today.getTime() - attendanceDate.getTime();
                     let diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
 
-                    // Jika masih dalam rentang H+3
-                    if (diffDays <= 3) {
+                    // Jika masih dalam rentang H+10
+                    if (diffDays <= 10) {
                         hasPendingOvertime = true;
                         pendingCount++;
                     } else {
-                        // Jika melewati H+3, otomatis ubah statusnya menjadi Rejected (Expired)
+                        // Jika melewati H+10, otomatis ubah statusnya menjadi Rejected (Expired) oleh sistem
                         item.overtimeStatus = "Rejected (Expired)";
                     }
                 }
             });
 
-            // Tampilkan popup pemberitahuan jika ada data lembur pending dalam batas H+3
+            // Tampilkan popup pemberitahuan jika ada data lembur pending dalam batas H+10
             if (hasPendingOvertime) {
                 if (typeof Swal !== 'undefined') {
                     Swal.fire({
@@ -308,12 +308,12 @@
                         title: 'Pemberitahuan Lembur',
                         html: `Anda mempunyai <b>${pendingCount}</b> data lemburan yang masih berstatus <b>Pending</b>.<br><br>` +
                               `Silakan segera menghubungi Manager untuk meminta Approval.<br><br>` +
-                              `<span class="text-red-600 font-semibold text-xs">Note: Batas maximum Approved adalah H+3. Jika melewati batas tersebut, maka status Pending akan otomatis berubah menjadi Reject.</span>`,
+                              `<span class="text-red-600 font-semibold text-xs">Note: Batas maximum Approved adalah H+10. Jika melewati batas tersebut, maka status Pending akan otomatis direject oleh sistem.</span>`,
                         confirmButtonText: 'Baik, Mengerti',
                         confirmButtonColor: '#dc2626'
                     });
                 } else {
-                    alert(`PEMBERITAHUAN:\nAnda mempunyai ${pendingCount} data lemburan yang masih status Pending. Silakan menghubungi Manager untuk meminta Approved.\n\nNote: Batas maximum Approved adalah H+3. Jika melewati batas tersebut, maka status Pending akan otomatis berubah menjadi Reject.`);
+                    alert(`PEMBERITAHUAN:\nAnda mempunyai ${pendingCount} data lemburan yang masih status Pending. Silakan menghubungi Manager untuk meminta Approved.\n\nNote: Batas maximum Approved adalah H+10. Jika melewati batas tersebut, maka status Pending akan otomatis direject oleh sistem.`);
                 }
             }
         }
