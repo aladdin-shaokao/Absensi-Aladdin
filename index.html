@@ -63,9 +63,9 @@
         </header>
 
         <!-- Content Area -->
-        <main class="max-w-5xl mx-auto px-4 mt-8">
+        <main class="max-w-6xl mx-auto px-4 mt-8">
             <div class="flex justify-between items-center mb-4">
-                <h3 id="tableTitle" class="font-bold text-slate-800 text-base">Riwayat Kehadiran</h3>
+                <h3 id="tableTitle" class="font-bold text-slate-800 text-base">Riwayat Kehadiran & Lembur</h3>
                 <span class="text-xs bg-red-50 text-red-600 px-3 py-1 rounded-full font-semibold">Data Fingerprint</span>
             </div>
             
@@ -77,7 +77,6 @@
     </div>
 
     <script>
-        // URL Web App Google Apps Script Anda
         const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbxLce5OHnZgW8QG-JKZV3YvuulqAh5WvKONJZ7iGfyUmpzU9XKZl1oL0OsxE18G0DWL/exec";
 
         async function handleLogin(e) {
@@ -121,7 +120,7 @@
             document.getElementById('userRoleBadge').innerText = `Akses: ${user.role}`;
 
             if (user.role === 'Manager') {
-                document.getElementById('tableTitle').innerText = "Rekapitulasi Kehadiran Seluruh Karyawan (Manager View)";
+                document.getElementById('tableTitle').innerText = "Rekapitulasi Kehadiran & Lembur Karyawan (Manager View)";
             }
 
             fetchAttendanceData(user);
@@ -139,34 +138,29 @@
                 const result = await response.json();
 
                 if (result.success && result.data.length > 0) {
-                    // 1. Urutkan data dari tanggal terbaru ke terlama (Descending) -> Baris teratas adalah hari ini
+                    // Urutkan data dari tanggal terbaru ke terlama (Descending) -> Hari ini di atas
                     result.data.sort((a, b) => new Date(b.date) - new Date(a.date));
 
-                    // 2. Kelompokkan data berdasarkan Bulan & Tahun (Format: 'YYYY-MM')
                     let groupedData = {};
                     result.data.forEach(row => {
                         if (!row.date || row.date === '-') return;
-                        let monthKey = row.date.substring(0, 7); // Contoh: "2026-10"
+                        let monthKey = row.date.substring(0, 7);
                         if (!groupedData[monthKey]) {
                             groupedData[monthKey] = [];
                         }
                         groupedData[monthKey].push(row);
                     });
 
-                    // Dapatkan bulan berjalan saat ini secara otomatis (misal: "2026-10")
                     let currentDateObj = new Date();
                     let currentMonthKey = currentDateObj.getFullYear() + '-' + String(currentDateObj.getMonth() + 1).padStart(2, '0');
 
                     container.innerHTML = "";
-                    
-                    // Urutkan kunci bulan dari yang terbaru (Descending)
                     let sortedMonths = Object.keys(groupedData).sort().reverse();
 
                     sortedMonths.forEach(monthKey => {
                         let rows = groupedData[monthKey];
-                        let isOpen = (monthKey === currentMonthKey); // Otomatis terbuka jika bulan berjalan
+                        let isOpen = (monthKey === currentMonthKey);
                         
-                        // Format Judul Bulan (Bahasa Indonesia)
                         let [year, monthNum] = monthKey.split('-');
                         let dateObj = new Date(year, monthNum - 1, 1);
                         let monthName = dateObj.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
@@ -174,23 +168,47 @@
                         let iconId = `icon-${monthKey}`;
 
                         let tableHeaders = user.role === 'Manager' 
-                            ? `<th class="p-3">Nama Karyawan</th><th class="p-3">Tanggal</th><th class="p-3">Status Kerja</th><th class="p-3">Masuk (In)</th><th class="p-3">Keluar (Out)</th><th class="p-3">Total Jam</th><th class="p-3">Keterangan</th>`
-                            : `<th class="p-3">Tanggal</th><th class="p-3">Status Kerja</th><th class="p-3">Masuk (In)</th><th class="p-3">Keluar (Out)</th><th class="p-3">Total Jam</th><th class="p-3">Keterangan</th>`;
+                            ? `<th class="p-3">Nama Karyawan</th><th class="p-3">Tanggal</th><th class="p-3">Masuk</th><th class="p-3">Keluar</th><th class="p-3">Total Jam</th><th class="p-3">Lembur</th><th class="p-3">Status Lembur</th><th class="p-3">Keterangan</th>`
+                            : `<th class="p-3">Tanggal</th><th class="p-3">Masuk</th><th class="p-3">Keluar</th><th class="p-3">Total Jam</th><th class="p-3">Lembur</th><th class="p-3">Status Lembur</th><th class="p-3">Keterangan</th>`;
 
                         let tableRowsHtml = "";
                         rows.forEach(row => {
                             let badgeColor = row.status === 'ON-TIME' || row.status === 'Good' ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600';
                             let formattedDate = row.date ? row.date.split('T')[0] : '-';
                             
+                            let overtimeDisplay = row.overtime > 0 ? `<span class="font-bold text-blue-600">+${row.overtime} Jam</span>` : `-`;
+                            
+                            let otStatusBadge = "";
+                            if (row.overtime > 0) {
+                                if (user.role === 'Manager') {
+                                    let currentStatus = row.overtimeStatus || 'Pending';
+                                    let btnClass = 'bg-amber-100 text-amber-700 hover:bg-amber-200';
+                                    if (currentStatus === 'Approved') btnClass = 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200';
+                                    if (currentStatus === 'Reject') btnClass = 'bg-rose-100 text-rose-700 hover:bg-rose-200';
+
+                                    otStatusBadge = `<button onclick="toggleOvertime(this, ${row.rowIndex})" class="px-2.5 py-1 rounded text-[10px] font-bold transition ${btnClass}">${currentStatus}</button>`;
+                                } else {
+                                    let currentStatus = row.overtimeStatus || 'Pending';
+                                    let badgeStyle = 'bg-amber-50 text-amber-600';
+                                    if (currentStatus === 'Approved') badgeStyle = 'bg-emerald-50 text-emerald-600';
+                                    if (currentStatus === 'Reject') badgeStyle = 'bg-rose-50 text-rose-600';
+
+                                    otStatusBadge = `<span class="px-2 py-1 rounded text-[10px] font-semibold ${badgeStyle}">${currentStatus}</span>`;
+                                }
+                            } else {
+                                otStatusBadge = `<span class="text-slate-300">-</span>`;
+                            }
+
                             if (user.role === 'Manager') {
                                 tableRowsHtml += `
                                     <tr class="border-b border-slate-100 hover:bg-slate-50">
                                         <td class="p-3 font-semibold text-slate-700">${row.name}</td>
                                         <td class="p-3">${formattedDate}</td>
-                                        <td class="p-3 font-medium">${row.workingStatus || '-'}</td>
                                         <td class="p-3 text-emerald-600 font-semibold">${row.entryTime}</td>
                                         <td class="p-3 text-rose-600 font-semibold">${row.exitTime}</td>
                                         <td class="p-3 font-mono">${row.workHours}</td>
+                                        <td class="p-3">${overtimeDisplay}</td>
+                                        <td class="p-3">${otStatusBadge}</td>
                                         <td class="p-3"><span class="px-2 py-1 rounded text-[10px] font-semibold ${badgeColor}">${row.status}</span></td>
                                     </tr>
                                 `;
@@ -198,17 +216,17 @@
                                 tableRowsHtml += `
                                     <tr class="border-b border-slate-100 hover:bg-slate-50">
                                         <td class="p-3">${formattedDate}</td>
-                                        <td class="p-3 font-medium">${row.workingStatus || '-'}</td>
                                         <td class="p-3 text-emerald-600 font-semibold">${row.entryTime}</td>
                                         <td class="p-3 text-rose-600 font-semibold">${row.exitTime}</td>
                                         <td class="p-3 font-mono">${row.workHours}</td>
+                                        <td class="p-3">${overtimeDisplay}</td>
+                                        <td class="p-3">${otStatusBadge}</td>
                                         <td class="p-3"><span class="px-2 py-1 rounded text-[10px] font-semibold ${badgeColor}">${row.status}</span></td>
                                     </tr>
                                 `;
                             }
                         });
 
-                        // Render Kotak Accordion Per Bulan
                         container.innerHTML += `
                             <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
                                 <button onclick="toggleAccordion('${contentId}', '${iconId}')" class="w-full p-4 bg-slate-50 hover:bg-slate-100 flex justify-between items-center transition border-b border-slate-200 text-left">
@@ -242,6 +260,32 @@
             } catch (err) {
                 container.innerHTML = `<div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 text-center text-red-500">Gagal memuat data absensi.</div>`;
             }
+        }
+
+        // Fungsi interaktif Manager: Pending -> Approved -> Reject
+        function toggleOvertime(btn, rowIndex) {
+            let currentText = btn.innerText;
+            let nextStatus = "";
+            let nextClass = "";
+
+            if (currentText === 'Pending') {
+                nextStatus = 'Approved';
+                nextClass = 'px-2.5 py-1 rounded text-[10px] font-bold transition bg-emerald-100 text-emerald-700 hover:bg-emerald-200';
+            } else if (currentText === 'Approved') {
+                nextStatus = 'Reject';
+                nextClass = 'px-2.5 py-1 rounded text-[10px] font-bold transition bg-rose-100 text-rose-700 hover:bg-rose-200';
+            } else {
+                nextStatus = 'Pending';
+                nextClass = 'px-2.5 py-1 rounded text-[10px] font-bold transition bg-amber-100 text-amber-700 hover:bg-amber-200';
+            }
+
+            btn.innerText = nextStatus;
+            btn.className = nextClass;
+
+            fetch(WEB_APP_URL, {
+                method: 'POST',
+                body: JSON.stringify({ action: "updateOvertimeStatus", rowIndex: rowIndex, status: nextStatus })
+            }).catch(err => console.error("Gagal memperbarui status lembur"));
         }
 
         function toggleAccordion(contentId, iconId) {
