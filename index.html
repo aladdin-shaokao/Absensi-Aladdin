@@ -76,6 +76,24 @@
 
         let currentUserData = null; // Menyimpan data user yang sedang login untuk pengecekan role
 
+        // Fungsi pembantu untuk memformat tanggal menjadi "09 OKT 2026"
+        function formatDateToId(dateStr) {
+            if (!dateStr || dateStr === '-') return '-';
+            // Bersihkan jika ada format waktu ISO
+            let cleanDate = dateStr.split('T')[0];
+            let parts = cleanDate.split('-');
+            if (parts.length !== 3) return dateStr;
+
+            let year = parts[0];
+            let monthIndex = parseInt(parts[1], 10) - 1;
+            let day = parts[2];
+
+            const months = ['JAN', 'FEB', 'MAR', 'APR', 'MEI', 'JUN', 'JUL', 'AGU', 'SEP', 'OKT', 'NOV', 'DES'];
+            let monthName = months[monthIndex] || 'JAN';
+
+            return `${day} ${monthName} ${year}`;
+        }
+
         async function handleLogin(e) {
             e.preventDefault();
             const username = document.getElementById('username').value;
@@ -175,12 +193,17 @@
                         let tableRowsHtml = "";
                         rows.forEach(row => {
                             let badgeColor = row.status === 'ON-TIME' || row.status === 'Good' ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600';
-                            let formattedDate = row.date ? row.date.split('T')[0] : '-';
+                            let formattedDate = formatDateToId(row.date);
                             
-                            let overtimeDisplay = row.overtime > 0 ? `<span class="font-bold text-blue-600">+${row.overtime} Jam</span>` : `-`;
+                            // Tampilkan jam lembur sekaligus detail menitnya (misal: +1 Jam (65 menit))
+                            let overtimeDisplay = `-`;
+                            if (row.overtime && row.overtime > 0) {
+                                let totalMinutes = row.overtime * 60; // Asumsi row.overtime dalam jam (atau jika ada desimal/hitung spesifik)
+                                overtimeDisplay = `<span class="font-bold text-blue-600">+${row.overtime} Jam <span class="text-[10px] text-slate-500 font-normal">(${totalMinutes} mnt)</span></span>`;
+                            }
                             
                             let otStatusBadge = "";
-                            if (row.overtime > 0) {
+                            if (row.overtime && row.overtime > 0) {
                                 if (user.role === 'Manager') {
                                     let currentStatus = row.overtimeStatus || 'Pending';
                                     let btnClass = 'bg-amber-100 text-amber-700 hover:bg-amber-200';
@@ -204,7 +227,7 @@
                                 tableRowsHtml += `
                                     <tr class="border-b border-slate-100 hover:bg-slate-50">
                                         <td class="p-3 font-semibold text-slate-700">${row.name}</td>
-                                        <td class="p-3">${formattedDate}</td>
+                                        <td class="p-3 whitespace-nowrap">${formattedDate}</td>
                                         <td class="p-3 font-medium">${row.workingStatus}</td>
                                         <td class="p-3 text-emerald-600 font-semibold">${row.entryTime}</td>
                                         <td class="p-3 text-rose-600 font-semibold">${row.exitTime}</td>
@@ -217,7 +240,7 @@
                             } else {
                                 tableRowsHtml += `
                                     <tr class="border-b border-slate-100 hover:bg-slate-50">
-                                        <td class="p-3">${formattedDate}</td>
+                                        <td class="p-3 whitespace-nowrap">${formattedDate}</td>
                                         <td class="p-3 font-medium">${row.workingStatus}</td>
                                         <td class="p-3 text-emerald-600 font-semibold">${row.entryTime}</td>
                                         <td class="p-3 text-rose-600 font-semibold">${row.exitTime}</td>
@@ -267,7 +290,6 @@
 
         // --- FITUR PENGECEKAN LEMBUR PENDING & BATAS MAX H+10 ---
         function checkPendingOvertime(attendanceDataList) {
-            // Jika yang login adalah Manager, lewati popup pemberitahuan karyawan
             if (currentUserData && currentUserData.role === "Manager") {
                 return;
             }
@@ -279,28 +301,23 @@
             let pendingCount = 0;
 
             attendanceDataList.forEach(function(item) {
-                // Pastikan ada lembur (> 0) dan statusnya masih "Pending"
                 if (item.overtime && item.overtime > 0 && item.overtimeStatus && item.overtimeStatus.toLowerCase() === "pending") {
                     
                     let attendanceDate = new Date(item.date);
                     attendanceDate.setHours(0, 0, 0, 0);
 
-                    // Hitung selisih hari dari tanggal lembur ke hari ini
                     let diffTime = today.getTime() - attendanceDate.getTime();
                     let diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
 
-                    // Jika masih dalam rentang H+10
                     if (diffDays <= 10) {
                         hasPendingOvertime = true;
                         pendingCount++;
                     } else {
-                        // Jika melewati H+10, otomatis ubah statusnya menjadi Rejected (Expired) oleh sistem
                         item.overtimeStatus = "Rejected (Expired)";
                     }
                 }
             });
 
-            // Tampilkan popup pemberitahuan jika ada data lembur pending dalam batas H+10
             if (hasPendingOvertime) {
                 if (typeof Swal !== 'undefined') {
                     Swal.fire({
