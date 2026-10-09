@@ -74,12 +74,11 @@
     <script>
         const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbxFwt1rTArWbj40k5ioM39uR9XHwhfFCqyFOaShaTxU9g2twB3MnyESXgWCZQyl1qeu/exec";
 
-        let currentUserData = null; // Menyimpan data user yang sedang login untuk pengecekan role
+        let currentUserData = null;
 
-        // Fungsi pembantu untuk memformat tanggal menjadi "09 OKT 2026"
+        // Fungsi Format Tanggal: "09 OKT 2026"
         function formatDateToId(dateStr) {
             if (!dateStr || dateStr === '-') return '-';
-            // Bersihkan jika ada format waktu ISO
             let cleanDate = dateStr.split('T')[0];
             let parts = cleanDate.split('-');
             if (parts.length !== 3) return dateStr;
@@ -113,7 +112,7 @@
                 const result = await response.json();
 
                 if (result.success) {
-                    currentUserData = result.user; // Simpan ke variabel global
+                    currentUserData = result.user;
                     localStorage.setItem('user', JSON.stringify(result.user));
                     loadDashboard(result.user);
                 } else {
@@ -157,7 +156,6 @@
                 if (result.success && result.data.length > 0) {
                     result.data.sort((a, b) => new Date(b.date) - new Date(a.date));
 
-                    // Jalankan pengecekan status lembur Pending & batasan H+10 otomatis setelah data diterima
                     checkPendingOvertime(result.data);
 
                     let groupedData = {};
@@ -195,11 +193,11 @@
                             let badgeColor = row.status === 'ON-TIME' || row.status === 'Good' ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600';
                             let formattedDate = formatDateToId(row.date);
                             
-                            // Tampilkan jam lembur sekaligus detail menitnya (misal: +1 Jam (65 menit))
+                            // Menampilkan lembur bulat + detail menit riil hasil perhitungan rumus (misal: +1 Jam (70 mnt))
                             let overtimeDisplay = `-`;
                             if (row.overtime && row.overtime > 0) {
-                                let totalMinutes = row.overtime * 60; // Asumsi row.overtime dalam jam (atau jika ada desimal/hitung spesifik)
-                                overtimeDisplay = `<span class="font-bold text-blue-600">+${row.overtime} Jam <span class="text-[10px] text-slate-500 font-normal">(${totalMinutes} mnt)</span></span>`;
+                                let exactMinutes = row.overtimeMinutes !== undefined ? row.overtimeMinutes : (row.overtime * 60);
+                                overtimeDisplay = `<span class="font-bold text-blue-600">+${row.overtime} Jam <span class="text-[10px] text-slate-500 font-normal">(${exactMinutes} mnt)</span></span>`;
                             }
                             
                             let otStatusBadge = "";
