@@ -359,7 +359,7 @@
 
                 if (result.success && result.data.length > 0) {
                     let totalData = result.data.length;
-                    if (badge) badge.innerText = `${totalData} Pengajuan`;
+                    if (badge) badge.innerText = `${totalData} Izin`;
 
                     // Urutkan dari terbaru, batasi maksimal 10 baris saja
                     let sortedData = result.data.reverse().slice(0, 10);
