@@ -53,7 +53,11 @@
                 <img src="logo_aladdin.png" alt="Logo" class="w-20 h-20 object-contain">
                 <div>
                     <h2 id="welcomeName" class="font-bold text-lg text-slate-800">Halo, Karyawan</h2>
-                    <p id="userRoleBadge" class="text-xs text-red-600 font-semibold">Role: Staff</p>
+                    <div class="flex flex-wrap gap-2 mt-1">
+                        <span id="userRoleBadge" class="text-xs bg-red-50 text-red-600 font-semibold px-2 py-0.5 rounded">Role: Staff</span>
+                        <span id="userDeptBadge" class="text-xs bg-blue-50 text-blue-600 font-semibold px-2 py-0.5 rounded">Dept: -</span>
+                        <span id="userAreaBadge" class="text-xs bg-emerald-50 text-emerald-600 font-semibold px-2 py-0.5 rounded">Area: -</span>
+                    </div>
                 </div>
             </div>
             <button onclick="logout()" class="bg-slate-100 hover:bg-red-50 text-red-600 text-xs font-semibold px-4 py-2 rounded-lg transition border border-slate-200">
@@ -133,7 +137,9 @@
             document.getElementById('loginPage').classList.add('hidden');
             document.getElementById('dashboardPage').classList.remove('hidden');
             document.getElementById('welcomeName').innerText = `Halo, ${user.name}`;
-            document.getElementById('userRoleBadge').innerText = `Akses: ${user.role}`;
+            document.getElementById('userRoleBadge').innerText = `Role: ${user.role}`;
+            document.getElementById('userDeptBadge').innerText = `Dept: ${user.department || '-'}`;
+            document.getElementById('userAreaBadge').innerText = `Area: ${user.statusArea || '-'}`;
 
             if (user.role === 'Manager') {
                 document.getElementById('tableTitle').innerText = "Rekapitulasi Kehadiran & Lembur Karyawan (Manager View)";
@@ -193,7 +199,6 @@
                             let badgeColor = row.status === 'ON-TIME' || row.status === 'Good' ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600';
                             let formattedDate = formatDateToId(row.date);
                             
-                            // Menampilkan lembur bulat + detail menit riil hasil perhitungan rumus (misal: +1 Jam (70 mnt))
                             let overtimeDisplay = `-`;
                             if (row.overtime && row.overtime > 0) {
                                 let exactMinutes = row.overtimeMinutes !== undefined ? row.overtimeMinutes : (row.overtime * 60);
@@ -286,7 +291,6 @@
             }
         }
 
-        // --- FITUR PENGECEKAN LEMBUR PENDING & BATAS MAX H+10 ---
         function checkPendingOvertime(attendanceDataList) {
             if (currentUserData && currentUserData.role === "Manager") {
                 return;
@@ -334,14 +338,14 @@
         }
 
         function toggleOvertime(btn, rowIndex) {
-            let currentText = btn.innerText;
+            let currentTest = btn.innerText;
             let nextStatus = "";
             let nextClass = "";
 
-            if (currentText === 'Pending') {
+            if (currentTest === 'Pending') {
                 nextStatus = 'Approved';
                 nextClass = 'px-2.5 py-1 rounded text-[10px] font-bold transition bg-emerald-100 text-emerald-700 hover:bg-emerald-200';
-            } else if (currentText === 'Approved') {
+            } else if (currentTest === 'Approved') {
                 nextStatus = 'Reject';
                 nextClass = 'px-2.5 py-1 rounded text-[10px] font-bold transition bg-rose-100 text-rose-700 hover:bg-rose-200';
             } else {
