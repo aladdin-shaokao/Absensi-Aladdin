@@ -70,7 +70,7 @@
         </header>
 
         <main class="max-w-6xl mx-auto px-4 mt-8 space-y-8">
-            <!-- SEKSI REKAP IZIN / SAKIT -->
+            <!-- REKAP IZIN -->
             <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
                 <div class="flex justify-between items-center mb-3">
                     <h3 class="font-bold text-slate-800 text-base">Riwayat Pengajuan Izin / Tidak Masuk</h3>
@@ -81,7 +81,7 @@
                 </div>
             </div>
 
-            <!-- SEKSI ABSENSI FINGERPRINT -->
+            <!-- ABSENSI FINGERPRINT -->
             <div>
                 <div class="flex justify-between items-center mb-4">
                     <h3 id="tableTitle" class="font-bold text-slate-800 text-base">Riwayat Kehadiran & Lembur</h3>
@@ -99,10 +99,10 @@
                 <h3 class="font-bold text-slate-800 text-base">Form Pengajuan Izin</h3>
                 <button onclick="closePermissionModal()" class="text-slate-400 hover:text-slate-600 font-bold text-lg">&times;</button>
             </div>
-            <form onsubmit="handlePermissionSubmit(event)" class="space-y-4">
+            <form onsubmit="handlePermissionSubmit(event)" oninput="validateForm()" class="space-y-4">
                 <div>
                     <label class="block text-xs font-semibold text-slate-600 mb-1">Jenis Izin</label>
-                    <select id="permJenis" required class="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs focus:ring-2 focus:ring-red-500">
+                    <select id="permJenis" onchange="togglePhotoUpload(); validateForm();" required class="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs focus:ring-2 focus:ring-red-500">
                         <option value="">-- Pilih Jenis Izin --</option>
                         <option value="Sakit">Sakit</option>
                         <option value="Izin Keperluan Pribadi">Izin Keperluan Pribadi</option>
@@ -110,23 +110,32 @@
                         <option value="Dinas Luar">Dinas Luar</option>
                     </select>
                 </div>
+
+                <!-- UPLOAD FOTO (MUNCUL JIKA SAKIT) -->
+                <div id="photoUploadContainer" class="hidden">
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">Upload Bukti Surat Sakit <span class="text-red-500">*</span></label>
+                    <input type="file" id="permFile" accept="image/*" onchange="validateForm()" class="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs file:mr-3 file:py-1 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-red-50 file:text-red-600 hover:file:bg-red-100">
+                    <p class="text-[10px] text-slate-400 mt-1">*Format gambar (JPG, PNG, JPEG)</p>
+                </div>
+
                 <div class="grid grid-cols-2 gap-3">
                     <div>
                         <label class="block text-xs font-semibold text-slate-600 mb-1">Mulai Tgl</label>
-                        <input type="date" id="permStartDate" required class="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs focus:ring-2 focus:ring-red-500">
+                        <input type="date" id="permStartDate" onchange="validateForm()" required class="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs focus:ring-2 focus:ring-red-500">
                     </div>
                     <div>
                         <label class="block text-xs font-semibold text-slate-600 mb-1">Selesai Tgl</label>
-                        <input type="date" id="permEndDate" required class="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs focus:ring-2 focus:ring-red-500">
+                        <input type="date" id="permEndDate" onchange="validateForm()" required class="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs focus:ring-2 focus:ring-red-500">
                     </div>
                 </div>
                 <div>
                     <label class="block text-xs font-semibold text-slate-600 mb-1">Alasan / Catatan</label>
-                    <textarea id="permAlasan" rows="3" required placeholder="Tuliskan detail alasan Anda berhalangan hadir..." class="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs focus:ring-2 focus:ring-red-500"></textarea>
+                    <textarea id="permAlasan" rows="3" oninput="validateForm()" required placeholder="Tuliskan detail alasan Anda berhalangan hadir..." class="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs focus:ring-2 focus:ring-red-500"></textarea>
                 </div>
                 <div class="flex justify-end space-x-2 pt-2">
                     <button type="button" onclick="closePermissionModal()" class="px-4 py-2 rounded-lg text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-600">Batal</button>
-                    <button type="submit" id="submitPermBtn" class="px-4 py-2 rounded-lg text-xs font-semibold bg-red-600 hover:bg-red-700 text-white">Kirim Pengajuan</button>
+                    <!-- Tombol default disabled sampai form valid -->
+                    <button type="submit" id="submitPermBtn" disabled class="px-4 py-2 rounded-lg text-xs font-semibold bg-red-600 hover:bg-red-700 text-white opacity-50 cursor-not-allowed">Kirim Pengajuan</button>
                 </div>
             </form>
         </div>
@@ -151,6 +160,48 @@
             let monthName = months[monthIndex] || 'JAN';
 
             return `${day} ${monthName} ${year}`;
+        }
+
+        function togglePhotoUpload() {
+            const jenis = document.getElementById('permJenis').value;
+            const container = document.getElementById('photoUploadContainer');
+            const fileInput = document.getElementById('permFile');
+
+            if (jenis === 'Sakit') {
+                container.classList.remove('hidden');
+                fileInput.required = true;
+            } else {
+                container.classList.add('hidden');
+                fileInput.required = false;
+                fileInput.value = ""; 
+            }
+        }
+
+        function validateForm() {
+            const jenis = document.getElementById('permJenis').value;
+            const startDate = document.getElementById('permStartDate').value;
+            const endDate = document.getElementById('permEndDate').value;
+            const alasan = document.getElementById('permAlasan').value;
+            const fileInput = document.getElementById('permFile');
+            const submitBtn = document.getElementById('submitPermBtn');
+
+            let isComplete = true;
+
+            if (!jenis || !startDate || !endDate || !alasan) {
+                isComplete = false;
+            }
+
+            if (jenis === 'Sakit' && (!fileInput.files || fileInput.files.length === 0)) {
+                isComplete = false;
+            }
+
+            if (isComplete) {
+                submitBtn.disabled = false;
+                submitBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+            } else {
+                submitBtn.disabled = true;
+                submitBtn.classList.add('opacity-50', 'cursor-not-allowed');
+            }
         }
 
         async function handleLogin(e) {
@@ -205,9 +256,9 @@
             fetchPermissions();
         }
 
-        // --- IZIN / PERMISSION FUNCTIONS ---
         function openPermissionModal() {
             document.getElementById('permissionModal').classList.remove('hidden');
+            validateForm();
         }
 
         function closePermissionModal() {
@@ -220,16 +271,34 @@
             btn.disabled = true;
             btn.innerText = "Mengirim...";
 
+            const jenis = document.getElementById('permJenis').value;
+            const fileInput = document.getElementById('permFile');
+
+            let fileData = "";
+            let fileName = "";
+
+            if (jenis === 'Sakit' && fileInput.files.length > 0) {
+                const file = fileInput.files[0];
+                fileName = `${currentUserData.username}_${Date.now()}_${file.name}`;
+                fileData = await new Promise((resolve) => {
+                    const reader = new FileReader();
+                    reader.onload = (e) => resolve(e.target.result);
+                    reader.readAsDataURL(file);
+                });
+            }
+
             const payload = {
                 action: "submitPermission",
                 username: currentUserData.username,
                 name: currentUserData.name,
                 department: currentUserData.department,
                 statusArea: currentUserData.statusArea,
-                jenisIzin: document.getElementById('permJenis').value,
+                jenisIzin: jenis,
                 startDate: formatDateToId(document.getElementById('permStartDate').value),
                 endDate: formatDateToId(document.getElementById('permEndDate').value),
-                alasan: document.getElementById('permAlasan').value
+                alasan: document.getElementById('permAlasan').value,
+                fileData: fileData,
+                fileName: fileName
             };
 
             try {
@@ -241,6 +310,11 @@
                 if (res.success) {
                     Swal.fire('Berhasil!', 'Pengajuan izin Anda telah terkirim.', 'success');
                     closePermissionModal();
+                    document.getElementById('permJenis').value = "";
+                    document.getElementById('permStartDate').value = "";
+                    document.getElementById('permEndDate').value = "";
+                    document.getElementById('permAlasan').value = "";
+                    document.getElementById('permFile').value = "";
                     fetchPermissions();
                 } else {
                     Swal.fire('Gagal!', res.message || 'Gagal mengirim izin.', 'error');
@@ -270,6 +344,7 @@
                                 <th class="p-2.5">Jenis Izin</th>
                                 <th class="p-2.5">Tanggal</th>
                                 <th class="p-2.5">Alasan</th>
+                                <th class="p-2.5">Bukti Foto</th>
                                 <th class="p-2.5">Status</th>
                             </tr>
                         </thead>
@@ -279,6 +354,10 @@
                         let badgeStyle = "bg-amber-50 text-amber-600";
                         if (row.status === "Approved") badgeStyle = "bg-emerald-50 text-emerald-600";
                         if (row.status.includes("Reject")) badgeStyle = "bg-rose-50 text-rose-600";
+
+                        let photoLink = row.fileUrl && row.fileUrl.startsWith("http") 
+                            ? `<a href="${row.fileUrl}" target="_blank" class="text-blue-600 font-bold hover:underline">Lihat Bukti</a>` 
+                            : `-`;
 
                         let statusBadge = "";
                         if (currentUserData.role === 'Manager') {
@@ -296,6 +375,7 @@
                             <td class="p-2.5 font-medium text-blue-600">${row.jenisIzin}</td>
                             <td class="p-2.5 text-slate-600 whitespace-nowrap">${row.tanggalRange}</td>
                             <td class="p-2.5 text-slate-500">${row.alasan}</td>
+                            <td class="p-2.5">${photoLink}</td>
                             <td class="p-2.5">${statusBadge}</td>
                         </tr>`;
                     });
