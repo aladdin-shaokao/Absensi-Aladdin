@@ -47,37 +47,56 @@
 
     <!-- HALAMAN DASHBOARD -->
     <div id="dashboardPage" class="hidden min-h-screen pb-12">
-        <header class="bg-white shadow-sm border-b border-slate-200 px-6 py-4 flex justify-between items-center">
-            <div class="flex items-center space-x-3">
-                <img src="logo_aladdin.png" alt="Logo" class="w-20 h-20 object-contain">
-                <div>
-                    <h2 id="welcomeName" class="font-bold text-lg text-slate-800">Halo, Karyawan</h2>
-                    <div class="flex flex-wrap gap-2 mt-1">
-                        <span id="userRoleBadge" class="text-xs bg-red-50 text-red-600 font-semibold px-2 py-0.5 rounded">Role: Staff</span>
-                        <span id="userDeptBadge" class="text-xs bg-blue-50 text-blue-600 font-semibold px-2 py-0.5 rounded">Dept: -</span>
-                        <span id="userAreaBadge" class="text-xs bg-emerald-50 text-emerald-600 font-semibold px-2 py-0.5 rounded">Area: -</span>
+        <header class="bg-white shadow-sm border-b border-slate-200 px-4 sm:px-6 py-4">
+            <div class="max-w-6xl mx-auto flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                
+                <!-- BAGIAN ATAS / KIRI: INFORMASI USER & LOGO -->
+                <div class="flex items-start justify-between md:justify-start md:items-center gap-3">
+                    <div>
+                        <h2 id="welcomeName" class="font-bold text-base sm:text-lg text-slate-800 leading-snug">Halo, Karyawan</h2>
+                        <div class="flex flex-wrap gap-1.5 sm:gap-2 mt-1.5">
+                            <span id="userRoleBadge" class="text-[11px] sm:text-xs bg-red-50 text-red-600 font-semibold px-2 py-0.5 rounded">Role: Staff</span>
+                            <span id="userDeptBadge" class="text-[11px] sm:text-xs bg-blue-50 text-blue-600 font-semibold px-2 py-0.5 rounded">Dept: -</span>
+                            <span id="userAreaBadge" class="text-[11px] sm:text-xs bg-emerald-50 text-emerald-600 font-semibold px-2 py-0.5 rounded">Area: -</span>
+                        </div>
                     </div>
+
+                    <!-- Logo Aladdin (Kanan di HP, Kiri di Laptop) -->
+                    <img src="logo_aladdin.png" alt="Logo" class="w-14 h-14 sm:w-16 sm:h-16 object-contain md:order-first">
                 </div>
-            </div>
-            <div class="flex items-center space-x-3">
-                <button onclick="openPermissionModal()" class="bg-red-600 hover:bg-red-700 text-white text-xs font-semibold px-4 py-2.5 rounded-lg transition shadow-sm flex items-center gap-1">
-                    <span>+</span> <span>Ajukan Izin</span>
-                </button>
-                <button onclick="logout()" class="bg-slate-100 hover:bg-red-50 text-red-600 text-xs font-semibold px-4 py-2.5 rounded-lg transition border border-slate-200">
-                    Keluar
-                </button>
+
+                <!-- BAGIAN TOMBOL AKSI -->
+                <div class="flex items-center justify-end gap-2 pt-2 border-t border-slate-100 md:border-t-0 md:pt-0">
+                    <button onclick="openPermissionModal()" class="flex-1 md:flex-none justify-center bg-red-600 hover:bg-red-700 text-white text-xs font-semibold px-4 py-2.5 rounded-lg transition shadow-sm flex items-center gap-1">
+                        <span>+</span> <span>Ajukan Izin</span>
+                    </button>
+                    <button onclick="logout()" class="flex-1 md:flex-none justify-center bg-slate-100 hover:bg-red-50 text-red-600 text-xs font-semibold px-4 py-2.5 rounded-lg transition border border-slate-200">
+                        Keluar
+                    </button>
+                </div>
+
             </div>
         </header>
 
         <main class="max-w-6xl mx-auto px-4 mt-8 space-y-8">
-            <!-- REKAP IZIN -->
-            <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
-                <div class="flex justify-between items-center mb-3">
-                    <h3 class="font-bold text-slate-800 text-base">Riwayat Pengajuan Izin / Tidak Masuk</h3>
-                    <button onclick="fetchPermissions()" class="text-xs text-red-600 hover:underline font-semibold">Refresh Izin</button>
-                </div>
-                <div id="permissionTableContainer" class="overflow-x-auto">
-                    <div class="text-center text-slate-400 py-4 text-xs">Memuat data pengajuan izin...</div>
+            <!-- REKAP IZIN (DROPDOWN & BATAS 10 BARIS) -->
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                <button onclick="toggleAccordion('permissionContent', 'permissionIcon')" class="w-full p-4 bg-slate-50 hover:bg-slate-100 flex justify-between items-center transition border-b border-slate-200 text-left">
+                    <div class="flex items-center space-x-2">
+                        <span class="font-bold text-slate-800 text-sm sm:text-base">Riwayat Pengajuan Izin / Tidak Masuk</span>
+                        <span id="permCountBadge" class="text-xs bg-red-100 text-red-600 px-2.5 py-0.5 rounded-full font-semibold">0 Pengajuan</span>
+                    </div>
+                    <div class="flex items-center space-x-3">
+                        <span onclick="event.stopPropagation(); fetchPermissions();" class="text-xs text-red-600 hover:underline font-semibold">Refresh</span>
+                        <svg id="permissionIcon" class="w-5 h-5 text-slate-500 transform transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                        </svg>
+                    </div>
+                </button>
+                <div id="permissionContent" class="hidden p-4">
+                    <div id="permissionTableContainer" class="overflow-x-auto">
+                        <div class="text-center text-slate-400 py-3 text-xs">Memuat data pengajuan izin...</div>
+                    </div>
                 </div>
             </div>
 
@@ -329,6 +348,8 @@
 
         async function fetchPermissions() {
             const container = document.getElementById('permissionTableContainer');
+            const badge = document.getElementById('permCountBadge');
+            
             try {
                 const response = await fetch(WEB_APP_URL, {
                     method: 'POST',
@@ -337,6 +358,12 @@
                 const result = await response.json();
 
                 if (result.success && result.data.length > 0) {
+                    let totalData = result.data.length;
+                    badge.innerText = `${totalData} Pengajuan`;
+
+                    // Urutkan dari terbaru, batasi maksimal 10 baris saja
+                    let sortedData = result.data.reverse().slice(0, 10);
+
                     let html = `<table class="w-full text-left border-collapse text-xs">
                         <thead>
                             <tr class="bg-slate-50 text-slate-500 border-b border-slate-200">
@@ -350,7 +377,7 @@
                         </thead>
                         <tbody>`;
 
-                    result.data.reverse().forEach(row => {
+                    sortedData.forEach(row => {
                         let badgeStyle = "bg-amber-50 text-amber-600";
                         if (row.status === "Approved") badgeStyle = "bg-emerald-50 text-emerald-600";
                         if (row.status.includes("Reject")) badgeStyle = "bg-rose-50 text-rose-600";
@@ -381,8 +408,12 @@
                     });
 
                     html += `</tbody></table>`;
+                    if (totalData > 10) {
+                        html += `<div class="text-center text-[11px] text-slate-400 mt-2">Menampilkan 10 pengajuan terakhir dari total ${totalData} data.</div>`;
+                    }
                     container.innerHTML = html;
                 } else {
+                    badge.innerText = `0 Pengajuan`;
                     container.innerHTML = `<div class="text-center text-slate-400 py-3 text-xs">Belum ada data pengajuan izin.</div>`;
                 }
             } catch (err) {
@@ -635,12 +666,4 @@
         }
 
         window.onload = function() {
-            const savedUser = localStorage.getItem('user');
-            if (savedUser) {
-                currentUserData = JSON.parse(savedUser);
-                loadDashboard(currentUserData);
-            }
-        }
-    </script>
-</body>
-</html>
+            const savedUser = localStorage.getItem
