@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Portal Absensi - Aladdin Shao Kao</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Memuat SweetAlert2 untuk Popup Pemberitahuan Lembur -->
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>body { font-family: 'Poppins', sans-serif; }</style>
@@ -60,19 +59,77 @@
                     </div>
                 </div>
             </div>
-            <button onclick="logout()" class="bg-slate-100 hover:bg-red-50 text-red-600 text-xs font-semibold px-4 py-2 rounded-lg transition border border-slate-200">
-                Keluar
-            </button>
+            <div class="flex items-center space-x-3">
+                <button onclick="openPermissionModal()" class="bg-red-600 hover:bg-red-700 text-white text-xs font-semibold px-4 py-2.5 rounded-lg transition shadow-sm flex items-center gap-1">
+                    <span>+</span> <span>Ajukan Izin</span>
+                </button>
+                <button onclick="logout()" class="bg-slate-100 hover:bg-red-50 text-red-600 text-xs font-semibold px-4 py-2.5 rounded-lg transition border border-slate-200">
+                    Keluar
+                </button>
+            </div>
         </header>
 
-        <main class="max-w-6xl mx-auto px-4 mt-8">
-            <div class="flex justify-between items-center mb-4">
-                <h3 id="tableTitle" class="font-bold text-slate-800 text-base">Riwayat Kehadiran & Lembur</h3>
-                <span class="text-xs bg-red-50 text-red-600 px-3 py-1 rounded-full font-semibold">Data Fingerprint</span>
+        <main class="max-w-6xl mx-auto px-4 mt-8 space-y-8">
+            <!-- SEKSI REKAP IZIN / SAKIT -->
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+                <div class="flex justify-between items-center mb-3">
+                    <h3 class="font-bold text-slate-800 text-base">Riwayat Pengajuan Izin / Tidak Masuk</h3>
+                    <button onclick="fetchPermissions()" class="text-xs text-red-600 hover:underline font-semibold">Refresh Izin</button>
+                </div>
+                <div id="permissionTableContainer" class="overflow-x-auto">
+                    <div class="text-center text-slate-400 py-4 text-xs">Memuat data pengajuan izin...</div>
+                </div>
             </div>
-            
-            <div id="accordionContainer" class="space-y-4"></div>
+
+            <!-- SEKSI ABSENSI FINGERPRINT -->
+            <div>
+                <div class="flex justify-between items-center mb-4">
+                    <h3 id="tableTitle" class="font-bold text-slate-800 text-base">Riwayat Kehadiran & Lembur</h3>
+                    <span class="text-xs bg-red-50 text-red-600 px-3 py-1 rounded-full font-semibold">Data Fingerprint</span>
+                </div>
+                <div id="accordionContainer" class="space-y-4"></div>
+            </div>
         </main>
+    </div>
+
+    <!-- MODAL POPUP FORM IZIN -->
+    <div id="permissionModal" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 border border-slate-100 transform transition-all">
+            <div class="flex justify-between items-center mb-4 pb-2 border-b border-slate-100">
+                <h3 class="font-bold text-slate-800 text-base">Form Pengajuan Izin</h3>
+                <button onclick="closePermissionModal()" class="text-slate-400 hover:text-slate-600 font-bold text-lg">&times;</button>
+            </div>
+            <form onsubmit="handlePermissionSubmit(event)" class="space-y-4">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">Jenis Izin</label>
+                    <select id="permJenis" required class="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs focus:ring-2 focus:ring-red-500">
+                        <option value="">-- Pilih Jenis Izin --</option>
+                        <option value="Sakit">Sakit</option>
+                        <option value="Izin Keperluan Pribadi">Izin Keperluan Pribadi</option>
+                        <option value="Cuti">Cuti</option>
+                        <option value="Dinas Luar">Dinas Luar</option>
+                    </select>
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">Mulai Tgl</label>
+                        <input type="date" id="permStartDate" required class="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs focus:ring-2 focus:ring-red-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">Selesai Tgl</label>
+                        <input type="date" id="permEndDate" required class="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs focus:ring-2 focus:ring-red-500">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">Alasan / Catatan</label>
+                    <textarea id="permAlasan" rows="3" required placeholder="Tuliskan detail alasan Anda berhalangan hadir..." class="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs focus:ring-2 focus:ring-red-500"></textarea>
+                </div>
+                <div class="flex justify-end space-x-2 pt-2">
+                    <button type="button" onclick="closePermissionModal()" class="px-4 py-2 rounded-lg text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-600">Batal</button>
+                    <button type="submit" id="submitPermBtn" class="px-4 py-2 rounded-lg text-xs font-semibold bg-red-600 hover:bg-red-700 text-white">Kirim Pengajuan</button>
+                </div>
+            </form>
+        </div>
     </div>
 
     <script>
@@ -80,7 +137,6 @@
 
         let currentUserData = null;
 
-        // Fungsi Format Tanggal: "09 OKT 2026"
         function formatDateToId(dateStr) {
             if (!dateStr || dateStr === '-') return '-';
             let cleanDate = dateStr.split('T')[0];
@@ -146,6 +202,126 @@
             }
 
             fetchAttendanceData(user);
+            fetchPermissions();
+        }
+
+        // --- IZIN / PERMISSION FUNCTIONS ---
+        function openPermissionModal() {
+            document.getElementById('permissionModal').classList.remove('hidden');
+        }
+
+        function closePermissionModal() {
+            document.getElementById('permissionModal').classList.add('hidden');
+        }
+
+        async function handlePermissionSubmit(e) {
+            e.preventDefault();
+            const btn = document.getElementById('submitPermBtn');
+            btn.disabled = true;
+            btn.innerText = "Mengirim...";
+
+            const payload = {
+                action: "submitPermission",
+                username: currentUserData.username,
+                name: currentUserData.name,
+                department: currentUserData.department,
+                statusArea: currentUserData.statusArea,
+                jenisIzin: document.getElementById('permJenis').value,
+                startDate: formatDateToId(document.getElementById('permStartDate').value),
+                endDate: formatDateToId(document.getElementById('permEndDate').value),
+                alasan: document.getElementById('permAlasan').value
+            };
+
+            try {
+                const response = await fetch(WEB_APP_URL, {
+                    method: 'POST',
+                    body: JSON.stringify(payload)
+                });
+                const res = await response.json();
+                if (res.success) {
+                    Swal.fire('Berhasil!', 'Pengajuan izin Anda telah terkirim.', 'success');
+                    closePermissionModal();
+                    fetchPermissions();
+                } else {
+                    Swal.fire('Gagal!', res.message || 'Gagal mengirim izin.', 'error');
+                }
+            } catch (err) {
+                Swal.fire('Error!', 'Terjadi kesalahan koneksi.', 'error');
+            } finally {
+                btn.disabled = false;
+                btn.innerText = "Kirim Pengajuan";
+            }
+        }
+
+        async function fetchPermissions() {
+            const container = document.getElementById('permissionTableContainer');
+            try {
+                const response = await fetch(WEB_APP_URL, {
+                    method: 'POST',
+                    body: JSON.stringify({ action: "getPermissions", username: currentUserData.username, role: currentUserData.role })
+                });
+                const result = await response.json();
+
+                if (result.success && result.data.length > 0) {
+                    let html = `<table class="w-full text-left border-collapse text-xs">
+                        <thead>
+                            <tr class="bg-slate-50 text-slate-500 border-b border-slate-200">
+                                ${currentUserData.role === 'Manager' ? '<th class="p-2.5">Nama</th>' : ''}
+                                <th class="p-2.5">Jenis Izin</th>
+                                <th class="p-2.5">Tanggal</th>
+                                <th class="p-2.5">Alasan</th>
+                                <th class="p-2.5">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>`;
+
+                    result.data.reverse().forEach(row => {
+                        let badgeStyle = "bg-amber-50 text-amber-600";
+                        if (row.status === "Approved") badgeStyle = "bg-emerald-50 text-emerald-600";
+                        if (row.status.includes("Reject")) badgeStyle = "bg-rose-50 text-rose-600";
+
+                        let statusBadge = "";
+                        if (currentUserData.role === 'Manager') {
+                            let btnClass = 'bg-amber-100 text-amber-700 hover:bg-amber-200';
+                            if (row.status === 'Approved') btnClass = 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200';
+                            if (row.status.includes('Reject')) btnClass = 'bg-rose-100 text-rose-700 hover:bg-rose-200';
+
+                            statusBadge = `<button onclick="togglePermissionStatus(this, ${row.rowIndex})" class="px-2 py-1 rounded text-[10px] font-bold transition ${btnClass}">${row.status}</button>`;
+                        } else {
+                            statusBadge = `<span class="px-2 py-0.5 rounded text-[10px] font-semibold ${badgeStyle}">${row.status}</span>`;
+                        }
+
+                        html += `<tr class="border-b border-slate-100 hover:bg-slate-50">
+                            ${currentUserData.role === 'Manager' ? `<td class="p-2.5 font-semibold text-slate-700">${row.name}</td>` : ''}
+                            <td class="p-2.5 font-medium text-blue-600">${row.jenisIzin}</td>
+                            <td class="p-2.5 text-slate-600 whitespace-nowrap">${row.tanggalRange}</td>
+                            <td class="p-2.5 text-slate-500">${row.alasan}</td>
+                            <td class="p-2.5">${statusBadge}</td>
+                        </tr>`;
+                    });
+
+                    html += `</tbody></table>`;
+                    container.innerHTML = html;
+                } else {
+                    container.innerHTML = `<div class="text-center text-slate-400 py-3 text-xs">Belum ada data pengajuan izin.</div>`;
+                }
+            } catch (err) {
+                container.innerHTML = `<div class="text-center text-red-500 py-3 text-xs">Gagal memuat data izin.</div>`;
+            }
+        }
+
+        function togglePermissionStatus(btn, rowIndex) {
+            let currentText = btn.innerText;
+            let nextStatus = currentText === 'Pending' ? 'Approved' : (currentText === 'Approved' ? 'Rejected' : 'Pending');
+            let nextClass = nextStatus === 'Approved' ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200' : (nextStatus === 'Rejected' ? 'bg-rose-100 text-rose-700 hover:bg-rose-200' : 'bg-amber-100 text-amber-700 hover:bg-amber-200');
+
+            btn.innerText = nextStatus;
+            btn.className = `px-2 py-1 rounded text-[10px] font-bold transition ${nextClass}`;
+
+            fetch(WEB_APP_URL, {
+                method: 'POST',
+                body: JSON.stringify({ action: "updatePermissionStatus", rowIndex: rowIndex, status: nextStatus })
+            }).catch(err => console.error("Gagal memperbarui status izin"));
         }
 
         async function fetchAttendanceData(user) {
@@ -338,14 +514,14 @@
         }
 
         function toggleOvertime(btn, rowIndex) {
-            let currentTest = btn.innerText;
+            let currentText = btn.innerText;
             let nextStatus = "";
             let nextClass = "";
 
-            if (currentTest === 'Pending') {
+            if (currentText === 'Pending') {
                 nextStatus = 'Approved';
                 nextClass = 'px-2.5 py-1 rounded text-[10px] font-bold transition bg-emerald-100 text-emerald-700 hover:bg-emerald-200';
-            } else if (currentTest === 'Approved') {
+            } else if (currentText === 'Approved') {
                 nextStatus = 'Reject';
                 nextClass = 'px-2.5 py-1 rounded text-[10px] font-bold transition bg-rose-100 text-rose-700 hover:bg-rose-200';
             } else {
