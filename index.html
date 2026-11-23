@@ -84,18 +84,66 @@
                     </div>
                     <img src="logo_aladdin.png" alt="Logo" class="w-20 h-20 sm:w-24 sm:h-24 object-contain md:order-first">
                 </div>
-                <div class="flex items-center justify-end gap-2 pt-2 border-t border-slate-100 md:border-t-0 md:pt-0">
-                    <button onclick="openPermissionModal()" class="flex-1 md:flex-none justify-center bg-red-600 hover:bg-red-700 text-white text-xs font-semibold px-4 py-2.5 rounded-lg transition shadow-sm flex items-center gap-1">
+                <div class="flex flex-wrap items-center justify-end gap-2 pt-2 border-t border-slate-100 md:border-t-0 md:pt-0">
+                    <button onclick="openReviewModal()" class="flex-1 md:flex-none justify-center bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold px-3.5 py-2.5 rounded-lg transition shadow-sm flex items-center gap-1">
+                        <span>⭐</span> <span>Klaim Poin Review</span>
+                    </button>
+                    <button onclick="openPermissionModal()" class="flex-1 md:flex-none justify-center bg-red-600 hover:bg-red-700 text-white text-xs font-semibold px-3.5 py-2.5 rounded-lg transition shadow-sm flex items-center gap-1">
                         <span>+</span> <span>Ajukan Izin</span>
                     </button>
-                    <button onclick="logout()" class="flex-1 md:flex-none justify-center bg-slate-100 hover:bg-red-50 text-red-600 text-xs font-semibold px-4 py-2.5 rounded-lg transition border border-slate-200">
+                    <button onclick="logout()" class="flex-1 md:flex-none justify-center bg-slate-100 hover:bg-red-50 text-red-600 text-xs font-semibold px-3 py-2.5 rounded-lg transition border border-slate-200">
                         Keluar
                     </button>
                 </div>
             </div>
         </header>
 
-        <main class="max-w-6xl mx-auto px-4 mt-8 space-y-8">
+        <main class="max-w-6xl mx-auto px-4 mt-6 space-y-6">
+            
+            <!-- CARD RINGKASAN POIN GOOGLE REVIEW -->
+            <div class="grid grid-cols-2 gap-4">
+                <div class="bg-gradient-to-br from-amber-500 to-amber-600 text-white p-4 rounded-xl shadow-sm flex items-center justify-between">
+                    <div>
+                        <p class="text-[11px] uppercase font-semibold text-amber-100 tracking-wider">Poin Review Valid</p>
+                        <h3 id="approvedPointsCount" class="text-2xl font-bold mt-1">0 Poin</h3>
+                    </div>
+                    <div class="w-10 h-10 bg-amber-400/30 rounded-full flex items-center justify-center text-xl font-bold">
+                        ⭐
+                    </div>
+                </div>
+                <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex items-center justify-between">
+                    <div>
+                        <p class="text-[11px] uppercase font-semibold text-slate-400 tracking-wider">Menunggu Validasi</p>
+                        <h3 id="pendingPointsCount" class="text-2xl font-bold text-slate-700 mt-1">0 Review</h3>
+                    </div>
+                    <div class="w-10 h-10 bg-amber-50 rounded-full flex items-center justify-center text-xl text-amber-600 font-bold">
+                        ⏳
+                    </div>
+                </div>
+            </div>
+
+            <!-- RIWAYAT KLAIM POIN GOOGLE REVIEW -->
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                <button onclick="toggleAccordion('reviewContent', 'reviewIcon')" class="w-full p-4 bg-slate-50 hover:bg-slate-100 flex justify-between items-center transition border-b border-slate-200 text-left">
+                    <div class="flex items-center space-x-2">
+                        <span class="font-bold text-slate-800 text-sm sm:text-base">Riwayat Klaim Google Review</span>
+                        <span id="reviewCountBadge" class="text-xs bg-amber-100 text-amber-700 px-2.5 py-0.5 rounded-full font-semibold">0 Klaim</span>
+                    </div>
+                    <div class="flex items-center space-x-3">
+                        <span onclick="event.stopPropagation(); fetchReviewClaims();" class="text-xs text-amber-600 hover:underline font-semibold">Refresh</span>
+                        <svg id="reviewIcon" class="w-5 h-5 text-slate-500 transform transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                        </svg>
+                    </div>
+                </button>
+                <div id="reviewContent" class="hidden p-4">
+                    <div id="reviewTableContainer" class="overflow-x-auto">
+                        <div class="text-center text-slate-400 py-3 text-xs">Memuat data klaim review...</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- REKAP IZIN -->
             <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
                 <button onclick="toggleAccordion('permissionContent', 'permissionIcon')" class="w-full p-4 bg-slate-50 hover:bg-slate-100 flex justify-between items-center transition border-b border-slate-200 text-left">
                     <div class="flex items-center space-x-2">
@@ -116,6 +164,7 @@
                 </div>
             </div>
 
+            <!-- ABSENSI FINGERPRINT -->
             <div>
                 <div class="flex justify-between items-center mb-4">
                     <h3 id="tableTitle" class="font-bold text-slate-800 text-base">Riwayat Kehadiran & Lembur</h3>
@@ -124,6 +173,31 @@
                 <div id="accordionContainer" class="space-y-4"></div>
             </div>
         </main>
+    </div>
+
+    <!-- MODAL POPUP FORM KLAIM GOOGLE REVIEW -->
+    <div id="reviewModal" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 border border-slate-100">
+            <div class="flex justify-between items-center mb-4 pb-2 border-b border-slate-100">
+                <h3 class="font-bold text-slate-800 text-base">Form Klaim Poin Review</h3>
+                <button onclick="closeReviewModal()" class="text-slate-400 hover:text-slate-600 font-bold text-lg">&times;</button>
+            </div>
+            <form onsubmit="handleReviewSubmit(event)" class="space-y-4">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">Upload Foto Bersama Pelanggan <span class="text-red-500">*</span></label>
+                    <input type="file" id="reviewFile" accept="image/*" required class="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs file:mr-3 file:py-1 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-amber-50 file:text-amber-600 hover:file:bg-amber-100">
+                    <p class="text-[10px] text-slate-400 mt-1">*Pastikan foto memperlihatkan Anda bersama pelanggan yang dikirimkan review-nya.</p>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">Nama Pelanggan / Catatan Review (Opsional)</label>
+                    <input type="text" id="customerNote" placeholder="Contoh: Pak Budi / Meja 5" class="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs focus:ring-2 focus:ring-amber-500">
+                </div>
+                <div class="flex justify-end space-x-2 pt-2">
+                    <button type="button" onclick="closeReviewModal()" class="px-4 py-2 rounded-lg text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-600">Batal</button>
+                    <button type="submit" id="submitReviewBtn" class="px-4 py-2 rounded-lg text-xs font-semibold bg-amber-500 hover:bg-amber-600 text-white shadow-sm">Kirim Klaim Poin</button>
+                </div>
+            </form>
+        </div>
     </div>
 
     <!-- MODAL POPUP FORM IZIN -->
@@ -256,9 +330,7 @@
                     currentUserData = result.user;
                     
                     if (result.isFirstLogin) {
-                        // Tampilkan sapaan nama dinamis di pop-up
                         document.getElementById('firstLoginWelcomeName').innerText = `Halo ${currentUserData.name}..`;
-                        // Tampilkan modal ganti password pertama kali
                         document.getElementById('firstLoginModal').classList.remove('hidden');
                     } else {
                         localStorage.setItem('user', JSON.stringify(result.user));
@@ -344,6 +416,168 @@
 
             fetchAttendanceData(user);
             fetchPermissions();
+            fetchReviewClaims();
+        }
+
+        // --- MANAJEMEN MODAL & UPLOAD GOOGLE REVIEW ---
+        function openReviewModal() {
+            document.getElementById('reviewModal').classList.remove('hidden');
+        }
+
+        function closeReviewModal() {
+            document.getElementById('reviewModal').classList.add('hidden');
+        }
+
+        async function handleReviewSubmit(e) {
+            e.preventDefault();
+            const btn = document.getElementById('submitReviewBtn');
+            const fileInput = document.getElementById('reviewFile');
+            const customerNote = document.getElementById('customerNote').value;
+
+            if (!fileInput.files || fileInput.files.length === 0) {
+                Swal.fire('Perhatian', 'Silakan pilih foto bersama pelanggan terlebih dahulu.', 'warning');
+                return;
+            }
+
+            btn.disabled = true;
+            btn.innerText = "Mengunggah Foto...";
+
+            const file = fileInput.files[0];
+            const fileName = `Review_${currentUserData.username}_${Date.now()}_${file.name}`;
+            
+            const fileData = await new Promise((resolve) => {
+                const reader = new FileReader();
+                reader.onload = (e) => resolve(e.target.result);
+                reader.readAsDataURL(file);
+            });
+
+            const payload = {
+                action: "submitReviewClaim",
+                username: currentUserData.username,
+                name: currentUserData.name,
+                department: currentUserData.department,
+                statusArea: currentUserData.statusArea,
+                customerNote: customerNote,
+                fileData: fileData,
+                fileName: fileName
+            };
+
+            try {
+                const response = await fetch(WEB_APP_URL, {
+                    method: 'POST',
+                    body: JSON.stringify(payload)
+                });
+                const res = await response.json();
+                if (res.success) {
+                    Swal.fire('Berhasil!', 'Klaim poin Google Review Anda berhasil terkirim dan menunggu approval Manager.', 'success');
+                    closeReviewModal();
+                    document.getElementById('reviewFile').value = "";
+                    document.getElementById('customerNote').value = "";
+                    fetchReviewClaims();
+                } else {
+                    Swal.fire('Gagal!', res.message || 'Gagal mengirim klaim review.', 'error');
+                }
+            } catch (err) {
+                Swal.fire('Error!', 'Terjadi kesalahan koneksi ke server.', 'error');
+            } finally {
+                btn.disabled = false;
+                btn.innerText = "Kirim Klaim Poin";
+            }
+        }
+
+        async function fetchReviewClaims() {
+            const container = document.getElementById('reviewTableContainer');
+            const badge = document.getElementById('reviewCountBadge');
+            const approvedCountEl = document.getElementById('approvedPointsCount');
+            const pendingCountEl = document.getElementById('pendingPointsCount');
+
+            try {
+                const response = await fetch(WEB_APP_URL, {
+                    method: 'POST',
+                    body: JSON.stringify({ action: "getReviewClaims", username: currentUserData.username, role: currentUserData.role })
+                });
+                const result = await response.json();
+
+                if (result.success) {
+                    if (approvedCountEl) approvedCountEl.innerText = `${result.summary.approvedPoints} Poin`;
+                    if (pendingCountEl) pendingCountEl.innerText = `${result.summary.pendingPoints} Review`;
+
+                    if (result.data.length > 0) {
+                        let totalData = result.data.length;
+                        if (badge) badge.innerText = `${totalData} Klaim`;
+
+                        let sortedData = result.data.reverse().slice(0, 10);
+
+                        let html = `<table class="w-full text-left border-collapse text-xs">
+                            <thead>
+                                <tr class="bg-amber-50/50 text-slate-500 border-b border-slate-200">
+                                    ${currentUserData.role === 'Manager' ? '<th class="p-2.5">Nama Staff</th>' : ''}
+                                    <th class="p-2.5">Tanggal</th>
+                                    <th class="p-2.5">Catatan / Pelanggan</th>
+                                    <th class="p-2.5">Bukti Foto</th>
+                                    <th class="p-2.5">Poin</th>
+                                    <th class="p-2.5">Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>`;
+
+                        sortedData.forEach(row => {
+                            let badgeStyle = "bg-amber-50 text-amber-600";
+                            if (row.status === "Approved") badgeStyle = "bg-emerald-50 text-emerald-600";
+                            if (row.status.includes("Reject")) badgeStyle = "bg-rose-50 text-rose-600";
+
+                            let photoLink = row.fileUrl && row.fileUrl.startsWith("http") 
+                                ? `<a href="${row.fileUrl}" target="_blank" class="text-blue-600 font-bold hover:underline">Lihat Foto</a>` 
+                                : `-`;
+
+                            let statusBadge = "";
+                            if (currentUserData.role === 'Manager') {
+                                let btnClass = 'bg-amber-100 text-amber-700 hover:bg-amber-200';
+                                if (row.status === 'Approved') btnClass = 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200';
+                                if (row.status.includes('Reject')) btnClass = 'bg-rose-100 text-rose-700 hover:bg-rose-200';
+
+                                statusBadge = `<button onclick="toggleReviewClaimStatus(this, ${row.rowIndex})" class="px-2 py-1 rounded text-[10px] font-bold transition ${btnClass}">${row.status}</button>`;
+                            } else {
+                                statusBadge = `<span class="px-2 py-0.5 rounded text-[10px] font-semibold ${badgeStyle}">${row.status}</span>`;
+                            }
+
+                            html += `<tr class="border-b border-slate-100 hover:bg-slate-50">
+                                ${currentUserData.role === 'Manager' ? `<td class="p-2.5 font-semibold text-slate-700">${row.name}</td>` : ''}
+                                <td class="p-2.5 text-slate-600 whitespace-nowrap">${row.timestamp}</td>
+                                <td class="p-2.5 text-slate-600">${row.customerNote}</td>
+                                <td class="p-2.5">${photoLink}</td>
+                                <td class="p-2.5 font-bold text-amber-600">+${row.points}</td>
+                                <td class="p-2.5">${statusBadge}</td>
+                            </tr>`;
+                        });
+
+                        html += `</tbody></table>`;
+                        if (totalData > 10) {
+                            html += `<div class="text-center text-[11px] text-slate-400 mt-2">Menampilkan 10 klaim terakhir dari total ${totalData} data.</div>`;
+                        }
+                        if (container) container.innerHTML = html;
+                    } else {
+                        if (badge) badge.innerText = `0 Klaim`;
+                        if (container) container.innerHTML = `<div class="text-center text-slate-400 py-3 text-xs">Belum ada riwayat klaim poin Google Review.</div>`;
+                    }
+                }
+            } catch (err) {
+                if (container) container.innerHTML = `<div class="text-center text-red-500 py-3 text-xs">Gagal memuat data klaim review.</div>`;
+            }
+        }
+
+        function toggleReviewClaimStatus(btn, rowIndex) {
+            let currentText = btn.innerText;
+            let nextStatus = currentText === 'Pending' ? 'Approved' : (currentText === 'Approved' ? 'Rejected' : 'Pending');
+            let nextClass = nextStatus === 'Approved' ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200' : (nextStatus === 'Rejected' ? 'bg-rose-100 text-rose-700 hover:bg-rose-200' : 'bg-amber-100 text-amber-700 hover:bg-amber-200');
+
+            btn.innerText = nextStatus;
+            btn.className = `px-2 py-1 rounded text-[10px] font-bold transition ${nextClass}`;
+
+            fetch(WEB_APP_URL, {
+                method: 'POST',
+                body: JSON.stringify({ action: "updateReviewClaimStatus", rowIndex: rowIndex, status: nextStatus })
+            }).then(() => fetchReviewClaims()).catch(err => console.error("Gagal memperbarui status klaim review"));
         }
 
         function openPermissionModal() {
