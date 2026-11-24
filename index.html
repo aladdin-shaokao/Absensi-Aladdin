@@ -99,6 +99,24 @@
         </header>
 
         <main class="max-w-6xl mx-auto px-4 mt-6 space-y-6">
+
+            <!-- PANEL KONTROL CABANG (KHUSUS MANAGER & ADMIN) -->
+            <div id="branchControlPanel" class="hidden bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div>
+                    <span id="branchScopeBadge" class="inline-block text-[11px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-indigo-50 text-indigo-700">
+                        Mode Monitoring
+                    </span>
+                    <p id="branchScopeDesc" class="text-xs text-slate-600 mt-1">
+                        Menampilkan data sesuai hak akses cabang.
+                    </p>
+                </div>
+                <div id="adminAreaFilterWrapper" class="hidden flex items-center gap-2">
+                    <label for="adminAreaFilter" class="text-xs font-semibold text-slate-600 whitespace-nowrap">Filter Cabang:</label>
+                    <select id="adminAreaFilter" onchange="onAdminBranchChange()" class="px-3 py-2 rounded-lg border border-slate-300 text-xs font-semibold text-slate-700 bg-slate-50 focus:outline-none focus:ring-2 focus:ring-red-500">
+                        <option value="ALL">Semua Cabang</option>
+                    </select>
+                </div>
+            </div>
             
             <!-- CARD RINGKASAN POIN GOOGLE REVIEW -->
             <div class="grid grid-cols-2 gap-4">
@@ -249,6 +267,86 @@
         const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbxFwt1rTArWbj40k5ioM39uR9XHwhfFCqyFOaShaTxU9g2twB3MnyESXgWCZQyl1qeu/exec";
 
         let currentUserData = null;
+        let selectedBranchFilter = "ALL";
+        let knownAreasList = [];
+
+        function isSupervisorRole(role) {
+            return role === "Manager" || role === "Admin";
+        }
+
+        function getEffectiveFilterArea() {
+            if (!currentUserData) return "ALL";
+            if (currentUserData.role === "Admin") {
+                return selectedBranchFilter || "ALL";
+            }
+            if (currentUserData.role === "Manager") {
+                return currentUserData.statusArea || "";
+            }
+            return "";
+        }
+
+        function populateBranchDropdown(areas) {
+            const select = document.getElementById("adminAreaFilter");
+            if (!select) return;
+
+            if (Array.isArray(areas) && areas.length > 0) {
+                knownAreasList = areas;
+            }
+
+            const prevVal = selectedBranchFilter || "ALL";
+            let optionsHtml = `<option value="ALL">Semua Cabang</option>`;
+            knownAreasList.forEach(area => {
+                const safeArea = String(area).replace(/"/g, "&quot;");
+                optionsHtml += `<option value="${safeArea}">${area}</option>`;
+            });
+
+            select.innerHTML = optionsHtml;
+            select.value = prevVal;
+        }
+
+        function onAdminBranchChange() {
+            const select = document.getElementById("adminAreaFilter");
+            selectedBranchFilter = select ? select.value : "ALL";
+            updateDashboardRoleUI(currentUserData);
+            refreshAllMonitoringData();
+        }
+
+        function refreshAllMonitoringData() {
+            if (!currentUserData) return;
+            fetchAttendanceData(currentUserData);
+            fetchPermissions();
+            fetchReviewClaims();
+        }
+
+        function updateDashboardRoleUI(user) {
+            const panel = document.getElementById("branchControlPanel");
+            const scopeBadge = document.getElementById("branchScopeBadge");
+            const scopeDesc = document.getElementById("branchScopeDesc");
+            const adminFilterWrap = document.getElementById("adminAreaFilterWrapper");
+            const tableTitle = document.getElementById("tableTitle");
+
+            if (user.role === "Admin") {
+                panel.classList.remove("hidden");
+                adminFilterWrap.classList.remove("hidden");
+                scopeBadge.innerText = "Dashboard Admin — Akses Semua Cabang";
+                scopeBadge.className = "inline-block text-[11px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-purple-100 text-purple-700";
+                const areaLabel = selectedBranchFilter === "ALL" ? "Semua Cabang" : selectedBranchFilter;
+                scopeDesc.innerText = `Anda memantau data seluruh cabang. Filter aktif: ${areaLabel}.`;
+                tableTitle.innerText = `Rekapitulasi Kehadiran & Lembur (${areaLabel} — Admin View)`;
+            } else if (user.role === "Manager") {
+                panel.classList.remove("hidden");
+                adminFilterWrap.classList.add("hidden");
+                const mgrArea = user.statusArea && user.statusArea !== "-" ? user.statusArea : "Cabang Belum Diatur";
+                scopeBadge.innerText = `Dashboard Manager — Cabang ${mgrArea}`;
+                scopeBadge.className = "inline-block text-[11px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-indigo-100 text-indigo-700";
+                scopeDesc.innerText = `Akses terbatas hanya untuk karyawan di cabang/area: ${mgrArea}.`;
+                tableTitle.innerText = `Rekapitulasi Kehadiran & Lembur — ${mgrArea} (Manager View)`;
+            } else {
+                panel.classList.add("hidden");
+                adminFilterWrap.classList.add("hidden");
+                tableTitle.innerText = "Riwayat Kehadiran & Lembur";
+            }
+        }
 
         function formatDateToId(dateStr) {
             if (!dateStr || dateStr === '-') return '-';
@@ -403,6 +501,7 @@
 
         function loadDashboard(user) {
             currentUserData = user;
+            selectedBranchFilter = "ALL";
             document.getElementById('loginPage').classList.add('hidden');
             document.getElementById('dashboardPage').classList.remove('hidden');
             document.getElementById('welcomeName').innerText = `Halo, ${user.name}`;
@@ -410,13 +509,9 @@
             document.getElementById('userDeptBadge').innerText = `Dept: ${user.department || '-'}`;
             document.getElementById('userAreaBadge').innerText = `Area: ${user.statusArea || '-'}`;
 
-            if (user.role === 'Manager') {
-                document.getElementById('tableTitle').innerText = "Rekapitulasi Kehadiran & Lembur Karyawan (Manager View)";
-            }
-
-            fetchAttendanceData(user);
-            fetchPermissions();
-            fetchReviewClaims();
+            populateBranchDropdown(knownAreasList);
+            updateDashboardRoleUI(user);
+            refreshAllMonitoringData();
         }
 
         // --- MANAJEMEN MODAL & UPLOAD GOOGLE REVIEW ---
@@ -494,24 +589,33 @@
             try {
                 const response = await fetch(WEB_APP_URL, {
                     method: 'POST',
-                    body: JSON.stringify({ action: "getReviewClaims", username: currentUserData.username, role: currentUserData.role })
+                    body: JSON.stringify({
+                        action: "getReviewClaims",
+                        username: currentUserData.username,
+                        role: currentUserData.role,
+                        statusArea: currentUserData.statusArea,
+                        filterArea: getEffectiveFilterArea()
+                    })
                 });
                 const result = await response.json();
 
                 if (result.success) {
+                    if (result.areas) populateBranchDropdown(result.areas);
                     if (approvedCountEl) approvedCountEl.innerText = `${result.summary.approvedPoints} Poin`;
                     if (pendingCountEl) pendingCountEl.innerText = `${result.summary.pendingPoints} Review`;
+
+                    const canApprove = isSupervisorRole(currentUserData.role);
 
                     if (result.data.length > 0) {
                         let totalData = result.data.length;
                         if (badge) badge.innerText = `${totalData} Klaim`;
 
-                        let sortedData = result.data.reverse().slice(0, 10);
+                        let sortedData = result.data.reverse().slice(0, 15);
 
                         let html = `<table class="w-full text-left border-collapse text-xs">
                             <thead>
                                 <tr class="bg-amber-50/50 text-slate-500 border-b border-slate-200">
-                                    ${currentUserData.role === 'Manager' ? '<th class="p-2.5">Nama Staff</th>' : ''}
+                                    ${canApprove ? '<th class="p-2.5">Nama Staff</th><th class="p-2.5">Cabang</th>' : ''}
                                     <th class="p-2.5">Tanggal</th>
                                     <th class="p-2.5">Catatan / Pelanggan</th>
                                     <th class="p-2.5">Bukti Foto</th>
@@ -531,7 +635,7 @@
                                 : `-`;
 
                             let statusBadge = "";
-                            if (currentUserData.role === 'Manager') {
+                            if (canApprove) {
                                 let btnClass = 'bg-amber-100 text-amber-700 hover:bg-amber-200';
                                 if (row.status === 'Approved') btnClass = 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200';
                                 if (row.status.includes('Reject')) btnClass = 'bg-rose-100 text-rose-700 hover:bg-rose-200';
@@ -542,7 +646,7 @@
                             }
 
                             html += `<tr class="border-b border-slate-100 hover:bg-slate-50">
-                                ${currentUserData.role === 'Manager' ? `<td class="p-2.5 font-semibold text-slate-700">${row.name}</td>` : ''}
+                                ${canApprove ? `<td class="p-2.5 font-semibold text-slate-700">${row.name}</td><td class="p-2.5 text-slate-500 whitespace-nowrap">${row.statusArea || '-'}</td>` : ''}
                                 <td class="p-2.5 text-slate-600 whitespace-nowrap">${row.timestamp}</td>
                                 <td class="p-2.5 text-slate-600">${row.customerNote}</td>
                                 <td class="p-2.5">${photoLink}</td>
@@ -552,13 +656,13 @@
                         });
 
                         html += `</tbody></table>`;
-                        if (totalData > 10) {
-                            html += `<div class="text-center text-[11px] text-slate-400 mt-2">Menampilkan 10 klaim terakhir dari total ${totalData} data.</div>`;
+                        if (totalData > 15) {
+                            html += `<div class="text-center text-[11px] text-slate-400 mt-2">Menampilkan 15 klaim terakhir dari total ${totalData} data.</div>`;
                         }
                         if (container) container.innerHTML = html;
                     } else {
                         if (badge) badge.innerText = `0 Klaim`;
-                        if (container) container.innerHTML = `<div class="text-center text-slate-400 py-3 text-xs">Belum ada riwayat klaim poin Google Review.</div>`;
+                        if (container) container.innerHTML = `<div class="text-center text-slate-400 py-3 text-xs">Belum ada riwayat klaim poin Google Review untuk cakupan ini.</div>`;
                     }
                 }
             } catch (err) {
@@ -658,20 +762,29 @@
             try {
                 const response = await fetch(WEB_APP_URL, {
                     method: 'POST',
-                    body: JSON.stringify({ action: "getPermissions", username: currentUserData.username, role: currentUserData.role })
+                    body: JSON.stringify({
+                        action: "getPermissions",
+                        username: currentUserData.username,
+                        role: currentUserData.role,
+                        statusArea: currentUserData.statusArea,
+                        filterArea: getEffectiveFilterArea()
+                    })
                 });
                 const result = await response.json();
 
                 if (result.success && result.data.length > 0) {
+                    if (result.areas) populateBranchDropdown(result.areas);
+
+                    const canApprove = isSupervisorRole(currentUserData.role);
                     let totalData = result.data.length;
                     if (badge) badge.innerText = `${totalData} Izin`;
 
-                    let sortedData = result.data.reverse().slice(0, 10);
+                    let sortedData = result.data.reverse().slice(0, 15);
 
                     let html = `<table class="w-full text-left border-collapse text-xs">
                         <thead>
                             <tr class="bg-slate-50 text-slate-500 border-b border-slate-200">
-                                ${currentUserData.role === 'Manager' ? '<th class="p-2.5">Nama</th>' : ''}
+                                ${canApprove ? '<th class="p-2.5">Nama</th><th class="p-2.5">Cabang</th>' : ''}
                                 <th class="p-2.5">Jenis Izin</th>
                                 <th class="p-2.5">Tanggal</th>
                                 <th class="p-2.5">Alasan</th>
@@ -691,7 +804,7 @@
                             : `-`;
 
                         let statusBadge = "";
-                        if (currentUserData.role === 'Manager') {
+                        if (canApprove) {
                             let btnClass = 'bg-amber-100 text-amber-700 hover:bg-amber-200';
                             if (row.status === 'Approved') btnClass = 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200';
                             if (row.status.includes('Reject')) btnClass = 'bg-rose-100 text-rose-700 hover:bg-rose-200';
@@ -702,7 +815,7 @@
                         }
 
                         html += `<tr class="border-b border-slate-100 hover:bg-slate-50">
-                            ${currentUserData.role === 'Manager' ? `<td class="p-2.5 font-semibold text-slate-700">${row.name}</td>` : ''}
+                            ${canApprove ? `<td class="p-2.5 font-semibold text-slate-700">${row.name}</td><td class="p-2.5 text-slate-500 whitespace-nowrap">${row.statusArea || '-'}</td>` : ''}
                             <td class="p-2.5 font-medium text-blue-600">${row.jenisIzin}</td>
                             <td class="p-2.5 text-slate-600 whitespace-nowrap">${row.tanggalRange}</td>
                             <td class="p-2.5 text-slate-500">${row.alasan}</td>
@@ -712,13 +825,13 @@
                     });
 
                     html += `</tbody></table>`;
-                    if (totalData > 10) {
-                        html += `<div class="text-center text-[11px] text-slate-400 mt-2">Menampilkan 10 pengajuan terakhir dari total ${totalData} data.</div>`;
+                    if (totalData > 15) {
+                        html += `<div class="text-center text-[11px] text-slate-400 mt-2">Menampilkan 15 pengajuan terakhir dari total ${totalData} data.</div>`;
                     }
                     if (container) container.innerHTML = html;
                 } else {
                     if (badge) badge.innerText = `0 Pengajuan`;
-                    if (container) container.innerHTML = `<div class="text-center text-slate-400 py-3 text-xs">Belum ada data pengajuan izin.</div>`;
+                    if (container) container.innerHTML = `<div class="text-center text-slate-400 py-3 text-xs">Belum ada data pengajuan izin untuk cakupan ini.</div>`;
                 }
             } catch (err) {
                 if (container) container.innerHTML = `<div class="text-center text-red-500 py-3 text-xs">Gagal memuat data izin.</div>`;
@@ -746,11 +859,19 @@
             try {
                 const response = await fetch(WEB_APP_URL, {
                     method: 'POST',
-                    body: JSON.stringify({ action: "getAttendance", name: user.name, role: user.role })
+                    body: JSON.stringify({
+                        action: "getAttendance",
+                        name: user.name,
+                        role: user.role,
+                        statusArea: user.statusArea,
+                        filterArea: getEffectiveFilterArea()
+                    })
                 });
                 const result = await response.json();
 
                 if (result.success && result.data.length > 0) {
+                    if (result.areas) populateBranchDropdown(result.areas);
+
                     result.data.sort((a, b) => new Date(b.date) - new Date(a.date));
 
                     checkPendingOvertime(result.data);
@@ -770,6 +891,7 @@
 
                     if (container) container.innerHTML = "";
                     let sortedMonths = Object.keys(groupedData).sort().reverse();
+                    const canApprove = isSupervisorRole(user.role);
 
                     sortedMonths.forEach(monthKey => {
                         let rows = groupedData[monthKey];
@@ -781,8 +903,8 @@
                         let contentId = `content-${monthKey}`;
                         let iconId = `icon-${monthKey}`;
 
-                        let tableHeaders = user.role === 'Manager' 
-                            ? `<th class="p-3">Nama Karyawan</th><th class="p-3">Tanggal</th><th class="p-3">Status Kerja</th><th class="p-3">Masuk</th><th class="p-3">Keluar</th><th class="p-3">Total Jam</th><th class="p-3">Lembur</th><th class="p-3">Status Lembur</th><th class="p-3">Keterangan</th>`
+                        let tableHeaders = canApprove 
+                            ? `<th class="p-3">Nama Karyawan</th><th class="p-3">Cabang</th><th class="p-3">Tanggal</th><th class="p-3">Status Kerja</th><th class="p-3">Masuk</th><th class="p-3">Keluar</th><th class="p-3">Total Jam</th><th class="p-3">Lembur</th><th class="p-3">Status Lembur</th><th class="p-3">Keterangan</th>`
                             : `<th class="p-3">Tanggal</th><th class="p-3">Status Kerja</th><th class="p-3">Masuk</th><th class="p-3">Keluar</th><th class="p-3">Total Jam</th><th class="p-3">Lembur</th><th class="p-3">Status Lembur</th><th class="p-3">Keterangan</th>`;
 
                         let tableRowsHtml = "";
@@ -798,7 +920,7 @@
                             
                             let otStatusBadge = "";
                             if (row.overtime && row.overtime > 0) {
-                                if (user.role === 'Manager') {
+                                if (canApprove) {
                                     let currentStatus = row.overtimeStatus || 'Pending';
                                     let btnClass = 'bg-amber-100 text-amber-700 hover:bg-amber-200';
                                     if (currentStatus === 'Approved') btnClass = 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200';
@@ -817,10 +939,11 @@
                                 otStatusBadge = `<span class="text-slate-300">-</span>`;
                             }
 
-                            if (user.role === 'Manager') {
+                            if (canApprove) {
                                 tableRowsHtml += `
                                     <tr class="border-b border-slate-100 hover:bg-slate-50">
                                         <td class="p-3 font-semibold text-slate-700">${row.name}</td>
+                                        <td class="p-3 text-slate-500 whitespace-nowrap">${row.statusArea || '-'}</td>
                                         <td class="p-3 whitespace-nowrap">${formattedDate}</td>
                                         <td class="p-3 font-medium">${row.workingStatus}</td>
                                         <td class="p-3 text-emerald-600 font-semibold">${row.entryTime}</td>
@@ -877,7 +1000,7 @@
                     });
 
                 } else {
-                    if (container) container.innerHTML = `<div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 text-center text-slate-400">Belum ada catatan absensi.</div>`;
+                    if (container) container.innerHTML = `<div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 text-center text-slate-400">Belum ada catatan absensi untuk cakupan cabang ini.</div>`;
                 }
             } catch (err) {
                 if (container) container.innerHTML = `<div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 text-center text-red-500">Gagal memuat data absensi.</div>`;
@@ -885,7 +1008,7 @@
         }
 
         function checkPendingOvertime(attendanceDataList) {
-            if (currentUserData && currentUserData.role === "Manager") {
+            if (currentUserData && isSupervisorRole(currentUserData.role)) {
                 return;
             }
 
@@ -964,6 +1087,7 @@
 
         function logout() {
             currentUserData = null;
+            selectedBranchFilter = "ALL";
             localStorage.removeItem('user');
             document.getElementById('dashboardPage').classList.add('hidden');
             document.getElementById('loginPage').classList.remove('hidden');
