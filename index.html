@@ -140,6 +140,22 @@
                 </div>
             </div>
 
+            <!-- LEADERBOARD TOP 5 POIN GOOGLE REVIEW (SEMUA ROLE) -->
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4">
+                <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 mb-3">
+                    <div class="flex items-center gap-2">
+                        <span class="text-base">🏆</span>
+                        <h3 class="font-bold text-slate-800 text-sm sm:text-base">Top 5 Poin Google Review</h3>
+                    </div>
+                    <span id="leaderboardScopeLabel" class="text-[11px] bg-amber-50 text-amber-700 px-2.5 py-0.5 rounded-full font-semibold w-fit">
+                        Berdasarkan Poin Valid (Approved)
+                    </span>
+                </div>
+                <div id="leaderboardContainer" class="divide-y divide-slate-100 text-xs">
+                    <div class="text-center text-slate-400 py-3">Memuat peringkat Top 5...</div>
+                </div>
+            </div>
+
             <!-- RIWAYAT KLAIM POIN GOOGLE REVIEW -->
             <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
                 <button onclick="toggleAccordion('reviewContent', 'reviewIcon')" class="w-full p-4 bg-slate-50 hover:bg-slate-100 flex justify-between items-center transition border-b border-slate-200 text-left">
@@ -280,13 +296,22 @@
         let currentReviewPage = 1;
         let isSessionExpiredHandling = false;
 
+        function escapeHtml(str) {
+            if (!str) return "";
+            return String(str)
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#39;");
+        }
+
         function saveSession(user) {
             const sessionPayload = {
                 user: user,
                 loginAt: Date.now()
             };
             localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(sessionPayload));
-            // Hapus key lama jika masih ada agar tidak tertinggal
             localStorage.removeItem("user");
         }
 
@@ -361,8 +386,8 @@
             const prevVal = selectedBranchFilter || "ALL";
             let optionsHtml = `<option value="ALL">Semua Cabang</option>`;
             knownAreasList.forEach(area => {
-                const safeArea = String(area).replace(/"/g, "&quot;");
-                optionsHtml += `<option value="${safeArea}">${area}</option>`;
+                const safeArea = escapeHtml(area);
+                optionsHtml += `<option value="${safeArea}">${safeArea}</option>`;
             });
 
             select.innerHTML = optionsHtml;
@@ -392,6 +417,7 @@
             const scopeDesc = document.getElementById("branchScopeDesc");
             const adminFilterWrap = document.getElementById("adminAreaFilterWrapper");
             const tableTitle = document.getElementById("tableTitle");
+            const leaderboardLabel = document.getElementById("leaderboardScopeLabel");
 
             if (user.role === "Admin") {
                 panel.classList.remove("hidden");
@@ -401,6 +427,7 @@
                 const areaLabel = selectedBranchFilter === "ALL" ? "Semua Cabang" : selectedBranchFilter;
                 scopeDesc.innerText = `Anda memantau data seluruh cabang. Filter aktif: ${areaLabel}.`;
                 tableTitle.innerText = `Rekapitulasi Kehadiran & Lembur (${areaLabel} — Admin View)`;
+                if (leaderboardLabel) leaderboardLabel.innerText = `Poin Valid (${areaLabel})`;
             } else if (user.role === "Manager") {
                 panel.classList.remove("hidden");
                 adminFilterWrap.classList.add("hidden");
@@ -409,10 +436,12 @@
                 scopeBadge.className = "inline-block text-[11px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-indigo-100 text-indigo-700";
                 scopeDesc.innerText = `Akses terbatas hanya untuk karyawan di cabang/area: ${mgrArea}.`;
                 tableTitle.innerText = `Rekapitulasi Kehadiran & Lembur — ${mgrArea} (Manager View)`;
+                if (leaderboardLabel) leaderboardLabel.innerText = `Poin Valid (${mgrArea})`;
             } else {
                 panel.classList.add("hidden");
                 adminFilterWrap.classList.add("hidden");
                 tableTitle.innerText = "Riwayat Kehadiran & Lembur";
+                if (leaderboardLabel) leaderboardLabel.innerText = "Berdasarkan Poin Valid (Approved)";
             }
         }
 
@@ -583,6 +612,47 @@
             refreshAllMonitoringData();
         }
 
+        // --- LEADERBOARD TOP 5 GOOGLE REVIEW ---
+        function renderLeaderboard(leaderboardList) {
+            const container = document.getElementById('leaderboardContainer');
+            if (!container) return;
+
+            if (!Array.isArray(leaderboardList) || leaderboardList.length === 0) {
+                container.innerHTML = `<div class="text-center text-slate-400 py-3">Belum ada poin review yang tervalidasi (Approved) untuk peringkat Top 5.</div>`;
+                return;
+            }
+
+            const medals = ["🥇", "🥈", "🥉", "4", "5"];
+
+            let html = "";
+            leaderboardList.slice(0, 5).forEach((item, idx) => {
+                const rankBadge = idx < 3
+                    ? `<span class="text-base leading-none">${medals[idx]}</span>`
+                    : `<span class="w-5 h-5 rounded-full bg-slate-100 text-slate-600 font-bold text-[10px] inline-flex items-center justify-center">${idx + 1}</span>`;
+
+                const isCurrentUser = currentUserData && item.name && item.name.toLowerCase() === currentUserData.name.toLowerCase();
+                const rowHighlight = isCurrentUser ? "bg-amber-50/70" : "";
+
+                html += `
+                    <div class="py-2.5 px-2 flex items-center justify-between gap-2 ${rowHighlight}">
+                        <div class="flex items-center gap-2.5 min-w-0">
+                            <div class="w-6 flex justify-center shrink-0">${rankBadge}</div>
+                            <div class="truncate">
+                                <span class="font-semibold text-slate-800">${escapeHtml(item.name)}</span>
+                                ${isCurrentUser ? '<span class="ml-1.5 text-[10px] bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded font-semibold">Anda</span>' : ''}
+                                <div class="text-[10px] text-slate-400 truncate">${escapeHtml(item.area || '-')} • ${item.claimsCount || item.points} Review Valid</div>
+                            </div>
+                        </div>
+                        <div class="text-right shrink-0">
+                            <span class="font-bold text-amber-600 text-xs sm:text-sm">${item.points} Poin</span>
+                        </div>
+                    </div>
+                `;
+            });
+
+            container.innerHTML = html;
+        }
+
         // --- MANAJEMEN MODAL & UPLOAD GOOGLE REVIEW ---
         function openReviewModal() {
             if (!enforceSessionValidity(true)) return;
@@ -653,6 +723,27 @@
             }
         }
 
+        function showStatusLogPopup(logText, validatorText, validatedAtText) {
+            const safeLog = logText
+                ? escapeHtml(logText).split(" | ").map(entry => `<li class="text-left mb-1.5">${entry}</li>`).join("")
+                : `<li class="text-slate-400">Belum ada riwayat perubahan status.</li>`;
+
+            Swal.fire({
+                icon: "info",
+                title: "Riwayat Validasi Klaim",
+                html: `
+                    <div class="text-xs text-slate-600 mb-2 text-left">
+                        <div><b>Validator Terakhir:</b> ${escapeHtml(validatorText || "-")}</div>
+                        <div><b>Waktu Validasi:</b> ${escapeHtml(validatedAtText || "-")}</div>
+                    </div>
+                    <hr class="my-2">
+                    <ul class="list-disc pl-4 text-xs text-slate-700 max-h-48 overflow-y-auto">${safeLog}</ul>
+                `,
+                confirmButtonText: "Tutup",
+                confirmButtonColor: "#d97706"
+            });
+        }
+
         function renderReviewClaimsPage() {
             const container = document.getElementById('reviewTableContainer');
             if (!container || !currentUserData) return;
@@ -682,17 +773,18 @@
                         <th class="p-2.5">Bukti Foto</th>
                         <th class="p-2.5">Poin</th>
                         <th class="p-2.5">Status</th>
+                        <th class="p-2.5">Divalidasi Oleh</th>
                     </tr>
                 </thead>
                 <tbody>`;
 
-            pageData.forEach(row => {
+            pageData.forEach((row, idx) => {
                 let badgeStyle = "bg-amber-50 text-amber-600";
                 if (row.status === "Approved") badgeStyle = "bg-emerald-50 text-emerald-600";
                 if (row.status.includes("Reject")) badgeStyle = "bg-rose-50 text-rose-600";
 
                 let photoLink = row.fileUrl && row.fileUrl.startsWith("http") 
-                    ? `<a href="${row.fileUrl}" target="_blank" class="text-blue-600 font-bold hover:underline">Lihat Foto</a>` 
+                    ? `<a href="${escapeHtml(row.fileUrl)}" target="_blank" class="text-blue-600 font-bold hover:underline">Lihat Foto</a>` 
                     : `-`;
 
                 let statusBadge = "";
@@ -701,18 +793,29 @@
                     if (row.status === 'Approved') btnClass = 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200';
                     if (row.status.includes('Reject')) btnClass = 'bg-rose-100 text-rose-700 hover:bg-rose-200';
 
-                    statusBadge = `<button onclick="toggleReviewClaimStatus(this, ${row.rowIndex})" class="px-2 py-1 rounded text-[10px] font-bold transition ${btnClass}">${row.status}</button>`;
+                    statusBadge = `<button onclick="toggleReviewClaimStatus(this, ${row.rowIndex}, ${startIdx + idx})" class="px-2 py-1 rounded text-[10px] font-bold transition ${btnClass}">${escapeHtml(row.status)}</button>`;
                 } else {
-                    statusBadge = `<span class="px-2 py-0.5 rounded text-[10px] font-semibold ${badgeStyle}">${row.status}</span>`;
+                    statusBadge = `<span class="px-2 py-0.5 rounded text-[10px] font-semibold ${badgeStyle}">${escapeHtml(row.status)}</span>`;
+                }
+
+                let validatorInfo = "-";
+                if (row.validatedBy || row.statusLog) {
+                    const vName = escapeHtml(row.validatedBy || "-");
+                    const vTime = row.validatedAt ? `<div class="text-[10px] text-slate-400">${escapeHtml(row.validatedAt)}</div>` : "";
+                    const logBtn = row.statusLog
+                        ? `<button type="button" onclick="openCachedLog(${startIdx + idx})" class="text-[10px] text-amber-700 hover:underline font-semibold mt-0.5">Lihat Log</button>`
+                        : "";
+                    validatorInfo = `<div class="whitespace-nowrap">${vName}${vTime}${logBtn}</div>`;
                 }
 
                 html += `<tr class="border-b border-slate-100 hover:bg-slate-50">
-                    ${canApprove ? `<td class="p-2.5 font-semibold text-slate-700">${row.name}</td><td class="p-2.5 text-slate-500 whitespace-nowrap">${row.statusArea || '-'}</td>` : ''}
-                    <td class="p-2.5 text-slate-600 whitespace-nowrap">${row.timestamp}</td>
-                    <td class="p-2.5 text-slate-600">${row.customerNote}</td>
+                    ${canApprove ? `<td class="p-2.5 font-semibold text-slate-700">${escapeHtml(row.name)}</td><td class="p-2.5 text-slate-500 whitespace-nowrap">${escapeHtml(row.statusArea || '-')}</td>` : ''}
+                    <td class="p-2.5 text-slate-600 whitespace-nowrap">${escapeHtml(row.timestamp)}</td>
+                    <td class="p-2.5 text-slate-600">${escapeHtml(row.customerNote)}</td>
                     <td class="p-2.5">${photoLink}</td>
                     <td class="p-2.5 font-bold text-amber-600">+${row.points}</td>
                     <td class="p-2.5">${statusBadge}</td>
+                    <td class="p-2.5 text-slate-600">${validatorInfo}</td>
                 </tr>`;
             });
 
@@ -735,6 +838,12 @@
             `;
 
             container.innerHTML = html;
+        }
+
+        function openCachedLog(cacheIndex) {
+            const row = reviewClaimsCache[cacheIndex];
+            if (!row) return;
+            showStatusLogPopup(row.statusLog, row.validatedBy, row.validatedAt);
         }
 
         function changeReviewPage(targetPage) {
@@ -771,6 +880,8 @@
                     if (approvedCountEl) approvedCountEl.innerText = `${result.summary.approvedPoints} Poin`;
                     if (pendingCountEl) pendingCountEl.innerText = `${result.summary.pendingPoints} Review`;
 
+                    renderLeaderboard(result.leaderboard || []);
+
                     const totalData = result.data.length;
                     if (badge) badge.innerText = `${totalData} Klaim`;
 
@@ -782,20 +893,42 @@
             }
         }
 
-        function toggleReviewClaimStatus(btn, rowIndex) {
+        function toggleReviewClaimStatus(btn, rowIndex, cacheIndex) {
             if (!enforceSessionValidity(true)) return;
 
-            let currentText = btn.innerText;
+            let currentText = btn.innerText.trim();
             let nextStatus = currentText === 'Pending' ? 'Approved' : (currentText === 'Approved' ? 'Rejected' : 'Pending');
             let nextClass = nextStatus === 'Approved' ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200' : (nextStatus === 'Rejected' ? 'bg-rose-100 text-rose-700 hover:bg-rose-200' : 'bg-amber-100 text-amber-700 hover:bg-amber-200');
 
             btn.innerText = nextStatus;
             btn.className = `px-2 py-1 rounded text-[10px] font-bold transition ${nextClass}`;
 
+            const actorName = currentUserData ? currentUserData.name : "";
+            const actorUsername = currentUserData ? currentUserData.username : "";
+            const actorRole = currentUserData ? currentUserData.role : "";
+
             fetch(WEB_APP_URL, {
                 method: 'POST',
-                body: JSON.stringify({ action: "updateReviewClaimStatus", rowIndex: rowIndex, status: nextStatus })
-            }).then(() => fetchReviewClaims()).catch(err => console.error("Gagal memperbarui status klaim review"));
+                body: JSON.stringify({
+                    action: "updateReviewClaimStatus",
+                    rowIndex: rowIndex,
+                    status: nextStatus,
+                    updatedByName: actorName,
+                    updatedByUsername: actorUsername,
+                    updatedByRole: actorRole
+                })
+            })
+            .then(res => res.json())
+            .then(res => {
+                if (res && res.success && reviewClaimsCache[cacheIndex]) {
+                    reviewClaimsCache[cacheIndex].status = nextStatus;
+                    reviewClaimsCache[cacheIndex].validatedBy = res.validatedBy || reviewClaimsCache[cacheIndex].validatedBy;
+                    reviewClaimsCache[cacheIndex].validatedAt = res.validatedAt || reviewClaimsCache[cacheIndex].validatedAt;
+                    reviewClaimsCache[cacheIndex].statusLog = res.statusLog || reviewClaimsCache[cacheIndex].statusLog;
+                }
+                fetchReviewClaims();
+            })
+            .catch(err => console.error("Gagal memperbarui status klaim review"));
         }
 
         function openPermissionModal() {
@@ -919,7 +1052,7 @@
                         if (row.status.includes("Reject")) badgeStyle = "bg-rose-50 text-rose-600";
 
                         let photoLink = row.fileUrl && row.fileUrl.startsWith("http") 
-                            ? `<a href="${row.fileUrl}" target="_blank" class="text-blue-600 font-bold hover:underline">Lihat Bukti</a>` 
+                            ? `<a href="${escapeHtml(row.fileUrl)}" target="_blank" class="text-blue-600 font-bold hover:underline">Lihat Bukti</a>` 
                             : `-`;
 
                         let statusBadge = "";
@@ -928,16 +1061,16 @@
                             if (row.status === 'Approved') btnClass = 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200';
                             if (row.status.includes('Reject')) btnClass = 'bg-rose-100 text-rose-700 hover:bg-rose-200';
 
-                            statusBadge = `<button onclick="togglePermissionStatus(this, ${row.rowIndex})" class="px-2 py-1 rounded text-[10px] font-bold transition ${btnClass}">${row.status}</button>`;
+                            statusBadge = `<button onclick="togglePermissionStatus(this, ${row.rowIndex})" class="px-2 py-1 rounded text-[10px] font-bold transition ${btnClass}">${escapeHtml(row.status)}</button>`;
                         } else {
-                            statusBadge = `<span class="px-2 py-0.5 rounded text-[10px] font-semibold ${badgeStyle}">${row.status}</span>`;
+                            statusBadge = `<span class="px-2 py-0.5 rounded text-[10px] font-semibold ${badgeStyle}">${escapeHtml(row.status)}</span>`;
                         }
 
                         html += `<tr class="border-b border-slate-100 hover:bg-slate-50">
-                            ${canApprove ? `<td class="p-2.5 font-semibold text-slate-700">${row.name}</td><td class="p-2.5 text-slate-500 whitespace-nowrap">${row.statusArea || '-'}</td>` : ''}
-                            <td class="p-2.5 font-medium text-blue-600">${row.jenisIzin}</td>
-                            <td class="p-2.5 text-slate-600 whitespace-nowrap">${row.tanggalRange}</td>
-                            <td class="p-2.5 text-slate-500">${row.alasan}</td>
+                            ${canApprove ? `<td class="p-2.5 font-semibold text-slate-700">${escapeHtml(row.name)}</td><td class="p-2.5 text-slate-500 whitespace-nowrap">${escapeHtml(row.statusArea || '-')}</td>` : ''}
+                            <td class="p-2.5 font-medium text-blue-600">${escapeHtml(row.jenisIzin)}</td>
+                            <td class="p-2.5 text-slate-600 whitespace-nowrap">${escapeHtml(row.tanggalRange)}</td>
+                            <td class="p-2.5 text-slate-500">${escapeHtml(row.alasan)}</td>
                             <td class="p-2.5">${photoLink}</td>
                             <td class="p-2.5">${statusBadge}</td>
                         </tr>`;
@@ -971,6 +1104,55 @@
                 method: 'POST',
                 body: JSON.stringify({ action: "updatePermissionStatus", rowIndex: rowIndex, status: nextStatus })
             }).catch(err => console.error("Gagal memperbarui status izin"));
+        }
+
+        function buildMonthSummaryBadges(rows, isSupervisor) {
+            let uniqueStaffSet = {};
+            let hadirCount = 0;
+            let offCount = 0;
+            let izinCount = 0;
+            let lemburPendingCount = 0;
+
+            rows.forEach(r => {
+                if (r.name && r.name !== "-") {
+                    uniqueStaffSet[r.name.toLowerCase()] = true;
+                }
+
+                const wStatus = (r.workingStatus || "").toString().trim().toLowerCase();
+                const hasEntry = r.entryTime && r.entryTime !== "-";
+
+                if (wStatus.includes("off") || wStatus.includes("libur")) {
+                    offCount++;
+                } else if (wStatus.includes("izin") || wStatus.includes("sakit") || wStatus.includes("cuti")) {
+                    izinCount++;
+                } else if (hasEntry || wStatus.includes("hadir") || wStatus.includes("work") || wStatus.includes("masuk")) {
+                    hadirCount++;
+                }
+
+                if (r.overtime && r.overtime > 0) {
+                    const otSt = (r.overtimeStatus || "Pending").toLowerCase();
+                    if (otSt === "pending") lemburPendingCount++;
+                }
+            });
+
+            if (isSupervisor) {
+                const staffCount = Object.keys(uniqueStaffSet).length;
+                let badges = `
+                    <span class="text-xs bg-slate-100 text-slate-700 px-2.5 py-0.5 rounded-full font-semibold">${staffCount} Karyawan</span>
+                    <span class="text-xs bg-emerald-50 text-emerald-700 px-2.5 py-0.5 rounded-full font-semibold">Hadir: ${hadirCount}</span>
+                `;
+                if (lemburPendingCount > 0) {
+                    badges += `<span class="text-xs bg-amber-100 text-amber-700 px-2.5 py-0.5 rounded-full font-semibold">Lembur Pending: ${lemburPendingCount}</span>`;
+                }
+                return badges;
+            } else {
+                return `
+                    <span class="text-xs bg-red-100 text-red-600 px-2.5 py-0.5 rounded-full font-semibold">${rows.length} Hari</span>
+                    <span class="text-xs bg-emerald-50 text-emerald-700 px-2.5 py-0.5 rounded-full font-semibold">Hadir: ${hadirCount}</span>
+                    <span class="text-xs bg-slate-100 text-slate-700 px-2.5 py-0.5 rounded-full font-semibold">OFF: ${offCount}</span>
+                    <span class="text-xs bg-blue-50 text-blue-700 px-2.5 py-0.5 rounded-full font-semibold">Izin: ${izinCount}</span>
+                `;
+            }
         }
 
         async function fetchAttendanceData(user) {
@@ -1026,6 +1208,8 @@
                         let contentId = `content-${monthKey}`;
                         let iconId = `icon-${monthKey}`;
 
+                        let summaryBadgesHtml = buildMonthSummaryBadges(rows, canApprove);
+
                         let tableHeaders = canApprove 
                             ? `<th class="p-3">Nama Karyawan</th><th class="p-3">Cabang</th><th class="p-3">Tanggal</th><th class="p-3">Status Kerja</th><th class="p-3">Masuk</th><th class="p-3">Keluar</th><th class="p-3">Total Jam</th><th class="p-3">Lembur</th><th class="p-3">Status Lembur</th><th class="p-3">Keterangan</th>`
                             : `<th class="p-3">Tanggal</th><th class="p-3">Status Kerja</th><th class="p-3">Masuk</th><th class="p-3">Keluar</th><th class="p-3">Total Jam</th><th class="p-3">Lembur</th><th class="p-3">Status Lembur</th><th class="p-3">Keterangan</th>`;
@@ -1049,14 +1233,14 @@
                                     if (currentStatus === 'Approved') btnClass = 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200';
                                     if (currentStatus === 'Reject' || currentStatus.includes('Rejected')) btnClass = 'bg-rose-100 text-rose-700 hover:bg-rose-200';
 
-                                    otStatusBadge = `<button onclick="toggleOvertime(this, ${row.rowIndex})" class="px-2.5 py-1 rounded text-[10px] font-bold transition ${btnClass}">${currentStatus}</button>`;
+                                    otStatusBadge = `<button onclick="toggleOvertime(this, ${row.rowIndex})" class="px-2.5 py-1 rounded text-[10px] font-bold transition ${btnClass}">${escapeHtml(currentStatus)}</button>`;
                                 } else {
                                     let currentStatus = row.overtimeStatus || 'Pending';
                                     let badgeStyle = 'bg-amber-50 text-amber-600';
                                     if (currentStatus === 'Approved') badgeStyle = 'bg-emerald-50 text-emerald-600';
                                     if (currentStatus === 'Reject' || currentStatus.includes('Rejected')) badgeStyle = 'bg-rose-50 text-rose-600';
 
-                                    otStatusBadge = `<span class="px-2 py-1 rounded text-[10px] font-semibold ${badgeStyle}">${currentStatus}</span>`;
+                                    otStatusBadge = `<span class="px-2 py-1 rounded text-[10px] font-semibold ${badgeStyle}">${escapeHtml(currentStatus)}</span>`;
                                 }
                             } else {
                                 otStatusBadge = `<span class="text-slate-300">-</span>`;
@@ -1065,29 +1249,29 @@
                             if (canApprove) {
                                 tableRowsHtml += `
                                     <tr class="border-b border-slate-100 hover:bg-slate-50">
-                                        <td class="p-3 font-semibold text-slate-700">${row.name}</td>
-                                        <td class="p-3 text-slate-500 whitespace-nowrap">${row.statusArea || '-'}</td>
+                                        <td class="p-3 font-semibold text-slate-700">${escapeHtml(row.name)}</td>
+                                        <td class="p-3 text-slate-500 whitespace-nowrap">${escapeHtml(row.statusArea || '-')}</td>
                                         <td class="p-3 whitespace-nowrap">${formattedDate}</td>
-                                        <td class="p-3 font-medium">${row.workingStatus}</td>
-                                        <td class="p-3 text-emerald-600 font-semibold">${row.entryTime}</td>
-                                        <td class="p-3 text-rose-600 font-semibold">${row.exitTime}</td>
-                                        <td class="p-3 font-mono">${row.workHours}</td>
+                                        <td class="p-3 font-medium">${escapeHtml(row.workingStatus)}</td>
+                                        <td class="p-3 text-emerald-600 font-semibold">${escapeHtml(row.entryTime)}</td>
+                                        <td class="p-3 text-rose-600 font-semibold">${escapeHtml(row.exitTime)}</td>
+                                        <td class="p-3 font-mono">${escapeHtml(row.workHours)}</td>
                                         <td class="p-3">${overtimeDisplay}</td>
                                         <td class="p-3">${otStatusBadge}</td>
-                                        <td class="p-3"><span class="px-2 py-1 rounded text-[10px] font-semibold ${badgeColor}">${row.status}</span></td>
+                                        <td class="p-3"><span class="px-2 py-1 rounded text-[10px] font-semibold ${badgeColor}">${escapeHtml(row.status)}</span></td>
                                     </tr>
                                 `;
                             } else {
                                 tableRowsHtml += `
                                     <tr class="border-b border-slate-100 hover:bg-slate-50">
                                         <td class="p-3 whitespace-nowrap">${formattedDate}</td>
-                                        <td class="p-3 font-medium">${row.workingStatus}</td>
-                                        <td class="p-3 text-emerald-600 font-semibold">${row.entryTime}</td>
-                                        <td class="p-3 text-rose-600 font-semibold">${row.exitTime}</td>
-                                        <td class="p-3 font-mono">${row.workHours}</td>
+                                        <td class="p-3 font-medium">${escapeHtml(row.workingStatus)}</td>
+                                        <td class="p-3 text-emerald-600 font-semibold">${escapeHtml(row.entryTime)}</td>
+                                        <td class="p-3 text-rose-600 font-semibold">${escapeHtml(row.exitTime)}</td>
+                                        <td class="p-3 font-mono">${escapeHtml(row.workHours)}</td>
                                         <td class="p-3">${overtimeDisplay}</td>
                                         <td class="p-3">${otStatusBadge}</td>
-                                        <td class="p-3"><span class="px-2 py-1 rounded text-[10px] font-semibold ${badgeColor}">${row.status}</span></td>
+                                        <td class="p-3"><span class="px-2 py-1 rounded text-[10px] font-semibold ${badgeColor}">${escapeHtml(row.status)}</span></td>
                                     </tr>
                                 `;
                             }
@@ -1096,12 +1280,12 @@
                         if (container) {
                             container.innerHTML += `
                                 <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-                                    <button onclick="toggleAccordion('${contentId}', '${iconId}')" class="w-full p-4 bg-slate-50 hover:bg-slate-100 flex justify-between items-center transition border-b border-slate-200 text-left">
-                                        <div class="flex items-center space-x-2">
+                                    <button onclick="toggleAccordion('${contentId}', '${iconId}')" class="w-full p-4 bg-slate-50 hover:bg-slate-100 flex justify-between items-center gap-2 transition border-b border-slate-200 text-left">
+                                        <div class="flex flex-wrap items-center gap-2">
                                             <span class="font-bold text-slate-800 text-sm sm:text-base capitalize">Absensi ${monthName}</span>
-                                            <span class="text-xs bg-red-100 text-red-600 px-2.5 py-0.5 rounded-full font-semibold">${rows.length} Hari</span>
+                                            ${summaryBadgesHtml}
                                         </div>
-                                        <svg id="${iconId}" class="w-5 h-5 text-slate-500 transform ${isOpen ? 'rotate-180' : ''} transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <svg id="${iconId}" class="w-5 h-5 text-slate-500 shrink-0 transform ${isOpen ? 'rotate-180' : ''} transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
                                         </svg>
                                     </button>
