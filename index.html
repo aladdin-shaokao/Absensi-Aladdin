@@ -266,9 +266,74 @@
     <script>
         const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbxFwt1rTArWbj40k5ioM39uR9XHwhfFCqyFOaShaTxU9g2twB3MnyESXgWCZQyl1qeu/exec";
 
+        // Batas masa berlaku sesi: 1 jam (dalam milidetik)
+        const SESSION_MAX_AGE_MS = 60 * 60 * 1000;
+        const SESSION_STORAGE_KEY = "aladdin_session_v1";
+
+        // Jumlah baris per halaman pada Riwayat Klaim Google Review
+        const REVIEW_PAGE_SIZE = 15;
+
         let currentUserData = null;
         let selectedBranchFilter = "ALL";
         let knownAreasList = [];
+        let reviewClaimsCache = [];
+        let currentReviewPage = 1;
+        let isSessionExpiredHandling = false;
+
+        function saveSession(user) {
+            const sessionPayload = {
+                user: user,
+                loginAt: Date.now()
+            };
+            localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(sessionPayload));
+            // Hapus key lama jika masih ada agar tidak tertinggal
+            localStorage.removeItem("user");
+        }
+
+        function getValidSession() {
+            const raw = localStorage.getItem(SESSION_STORAGE_KEY);
+            if (!raw) return null;
+            try {
+                const parsed = JSON.parse(raw);
+                if (!parsed || !parsed.user || !parsed.loginAt) {
+                    localStorage.removeItem(SESSION_STORAGE_KEY);
+                    return null;
+                }
+                const elapsed = Date.now() - Number(parsed.loginAt);
+                if (isNaN(elapsed) || elapsed > SESSION_MAX_AGE_MS) {
+                    localStorage.removeItem(SESSION_STORAGE_KEY);
+                    return null;
+                }
+                return parsed.user;
+            } catch (e) {
+                localStorage.removeItem(SESSION_STORAGE_KEY);
+                return null;
+            }
+        }
+
+        function enforceSessionValidity(showExpiredAlert) {
+            if (!currentUserData) return true;
+            const validUser = getValidSession();
+            if (!validUser) {
+                if (isSessionExpiredHandling) return false;
+                isSessionExpiredHandling = true;
+                logout(false);
+                if (showExpiredAlert && typeof Swal !== "undefined") {
+                    Swal.fire({
+                        icon: "info",
+                        title: "Sesi Berakhir",
+                        text: "Masa berlaku sesi login (1 jam) telah habis. Silakan login kembali menggunakan email Anda.",
+                        confirmButtonColor: "#dc2626"
+                    }).finally(() => {
+                        isSessionExpiredHandling = false;
+                    });
+                } else {
+                    isSessionExpiredHandling = false;
+                }
+                return false;
+            }
+            return true;
+        }
 
         function isSupervisorRole(role) {
             return role === "Manager" || role === "Admin";
@@ -305,14 +370,17 @@
         }
 
         function onAdminBranchChange() {
+            if (!enforceSessionValidity(true)) return;
             const select = document.getElementById("adminAreaFilter");
             selectedBranchFilter = select ? select.value : "ALL";
+            currentReviewPage = 1;
             updateDashboardRoleUI(currentUserData);
             refreshAllMonitoringData();
         }
 
         function refreshAllMonitoringData() {
             if (!currentUserData) return;
+            if (!enforceSessionValidity(true)) return;
             fetchAttendanceData(currentUserData);
             fetchPermissions();
             fetchReviewClaims();
@@ -431,7 +499,7 @@
                         document.getElementById('firstLoginWelcomeName').innerText = `Halo ${currentUserData.name}..`;
                         document.getElementById('firstLoginModal').classList.remove('hidden');
                     } else {
-                        localStorage.setItem('user', JSON.stringify(result.user));
+                        saveSession(result.user);
                         loadDashboard(result.user);
                     }
                 } else {
@@ -486,7 +554,7 @@
                         showConfirmButton: false
                     });
                     document.getElementById('firstLoginModal').classList.add('hidden');
-                    localStorage.setItem('user', JSON.stringify(currentUserData));
+                    saveSession(currentUserData);
                     loadDashboard(currentUserData);
                 } else {
                     Swal.fire('Gagal', result.message || 'Gagal menyimpan password.', 'error');
@@ -502,6 +570,7 @@
         function loadDashboard(user) {
             currentUserData = user;
             selectedBranchFilter = "ALL";
+            currentReviewPage = 1;
             document.getElementById('loginPage').classList.add('hidden');
             document.getElementById('dashboardPage').classList.remove('hidden');
             document.getElementById('welcomeName').innerText = `Halo, ${user.name}`;
@@ -516,6 +585,7 @@
 
         // --- MANAJEMEN MODAL & UPLOAD GOOGLE REVIEW ---
         function openReviewModal() {
+            if (!enforceSessionValidity(true)) return;
             document.getElementById('reviewModal').classList.remove('hidden');
         }
 
@@ -525,6 +595,8 @@
 
         async function handleReviewSubmit(e) {
             e.preventDefault();
+            if (!enforceSessionValidity(true)) return;
+
             const btn = document.getElementById('submitReviewBtn');
             const fileInput = document.getElementById('reviewFile');
             const customerNote = document.getElementById('customerNote').value;
@@ -568,6 +640,7 @@
                     closeReviewModal();
                     document.getElementById('reviewFile').value = "";
                     document.getElementById('customerNote').value = "";
+                    currentReviewPage = 1;
                     fetchReviewClaims();
                 } else {
                     Swal.fire('Gagal!', res.message || 'Gagal mengirim klaim review.', 'error');
@@ -580,7 +653,101 @@
             }
         }
 
+        function renderReviewClaimsPage() {
+            const container = document.getElementById('reviewTableContainer');
+            if (!container || !currentUserData) return;
+
+            const canApprove = isSupervisorRole(currentUserData.role);
+            const totalData = reviewClaimsCache.length;
+
+            if (totalData === 0) {
+                container.innerHTML = `<div class="text-center text-slate-400 py-3 text-xs">Belum ada riwayat klaim poin Google Review untuk cakupan ini.</div>`;
+                return;
+            }
+
+            const totalPages = Math.max(1, Math.ceil(totalData / REVIEW_PAGE_SIZE));
+            if (currentReviewPage > totalPages) currentReviewPage = totalPages;
+            if (currentReviewPage < 1) currentReviewPage = 1;
+
+            const startIdx = (currentReviewPage - 1) * REVIEW_PAGE_SIZE;
+            const endIdx = Math.min(startIdx + REVIEW_PAGE_SIZE, totalData);
+            const pageData = reviewClaimsCache.slice(startIdx, endIdx);
+
+            let html = `<table class="w-full text-left border-collapse text-xs">
+                <thead>
+                    <tr class="bg-amber-50/50 text-slate-500 border-b border-slate-200">
+                        ${canApprove ? '<th class="p-2.5">Nama Staff</th><th class="p-2.5">Cabang</th>' : ''}
+                        <th class="p-2.5">Tanggal</th>
+                        <th class="p-2.5">Catatan / Pelanggan</th>
+                        <th class="p-2.5">Bukti Foto</th>
+                        <th class="p-2.5">Poin</th>
+                        <th class="p-2.5">Status</th>
+                    </tr>
+                </thead>
+                <tbody>`;
+
+            pageData.forEach(row => {
+                let badgeStyle = "bg-amber-50 text-amber-600";
+                if (row.status === "Approved") badgeStyle = "bg-emerald-50 text-emerald-600";
+                if (row.status.includes("Reject")) badgeStyle = "bg-rose-50 text-rose-600";
+
+                let photoLink = row.fileUrl && row.fileUrl.startsWith("http") 
+                    ? `<a href="${row.fileUrl}" target="_blank" class="text-blue-600 font-bold hover:underline">Lihat Foto</a>` 
+                    : `-`;
+
+                let statusBadge = "";
+                if (canApprove) {
+                    let btnClass = 'bg-amber-100 text-amber-700 hover:bg-amber-200';
+                    if (row.status === 'Approved') btnClass = 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200';
+                    if (row.status.includes('Reject')) btnClass = 'bg-rose-100 text-rose-700 hover:bg-rose-200';
+
+                    statusBadge = `<button onclick="toggleReviewClaimStatus(this, ${row.rowIndex})" class="px-2 py-1 rounded text-[10px] font-bold transition ${btnClass}">${row.status}</button>`;
+                } else {
+                    statusBadge = `<span class="px-2 py-0.5 rounded text-[10px] font-semibold ${badgeStyle}">${row.status}</span>`;
+                }
+
+                html += `<tr class="border-b border-slate-100 hover:bg-slate-50">
+                    ${canApprove ? `<td class="p-2.5 font-semibold text-slate-700">${row.name}</td><td class="p-2.5 text-slate-500 whitespace-nowrap">${row.statusArea || '-'}</td>` : ''}
+                    <td class="p-2.5 text-slate-600 whitespace-nowrap">${row.timestamp}</td>
+                    <td class="p-2.5 text-slate-600">${row.customerNote}</td>
+                    <td class="p-2.5">${photoLink}</td>
+                    <td class="p-2.5 font-bold text-amber-600">+${row.points}</td>
+                    <td class="p-2.5">${statusBadge}</td>
+                </tr>`;
+            });
+
+            html += `</tbody></table>`;
+
+            html += `
+                <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mt-3 pt-3 border-t border-slate-100 text-[11px] text-slate-500">
+                    <div>
+                        Menampilkan <b>${startIdx + 1}–${endIdx}</b> dari total <b>${totalData}</b> klaim (Halaman <b>${currentReviewPage}</b> dari <b>${totalPages}</b>)
+                    </div>
+                    <div class="flex items-center gap-1.5">
+                        <button onclick="changeReviewPage(${currentReviewPage - 1})" ${currentReviewPage <= 1 ? 'disabled' : ''} class="px-3 py-1 rounded-md border border-slate-200 font-semibold transition ${currentReviewPage <= 1 ? 'bg-slate-50 text-slate-300 cursor-not-allowed' : 'bg-white text-slate-700 hover:bg-amber-50 hover:text-amber-700'}">
+                            &laquo; Sebelumnya
+                        </button>
+                        <button onclick="changeReviewPage(${currentReviewPage + 1})" ${currentReviewPage >= totalPages ? 'disabled' : ''} class="px-3 py-1 rounded-md border border-slate-200 font-semibold transition ${currentReviewPage >= totalPages ? 'bg-slate-50 text-slate-300 cursor-not-allowed' : 'bg-white text-slate-700 hover:bg-amber-50 hover:text-amber-700'}">
+                            Berikutnya &raquo;
+                        </button>
+                    </div>
+                </div>
+            `;
+
+            container.innerHTML = html;
+        }
+
+        function changeReviewPage(targetPage) {
+            if (!enforceSessionValidity(true)) return;
+            const totalPages = Math.max(1, Math.ceil(reviewClaimsCache.length / REVIEW_PAGE_SIZE));
+            if (targetPage < 1 || targetPage > totalPages) return;
+            currentReviewPage = targetPage;
+            renderReviewClaimsPage();
+        }
+
         async function fetchReviewClaims() {
+            if (!enforceSessionValidity(true)) return;
+
             const container = document.getElementById('reviewTableContainer');
             const badge = document.getElementById('reviewCountBadge');
             const approvedCountEl = document.getElementById('approvedPointsCount');
@@ -604,66 +771,11 @@
                     if (approvedCountEl) approvedCountEl.innerText = `${result.summary.approvedPoints} Poin`;
                     if (pendingCountEl) pendingCountEl.innerText = `${result.summary.pendingPoints} Review`;
 
-                    const canApprove = isSupervisorRole(currentUserData.role);
+                    const totalData = result.data.length;
+                    if (badge) badge.innerText = `${totalData} Klaim`;
 
-                    if (result.data.length > 0) {
-                        let totalData = result.data.length;
-                        if (badge) badge.innerText = `${totalData} Klaim`;
-
-                        let sortedData = result.data.reverse().slice(0, 15);
-
-                        let html = `<table class="w-full text-left border-collapse text-xs">
-                            <thead>
-                                <tr class="bg-amber-50/50 text-slate-500 border-b border-slate-200">
-                                    ${canApprove ? '<th class="p-2.5">Nama Staff</th><th class="p-2.5">Cabang</th>' : ''}
-                                    <th class="p-2.5">Tanggal</th>
-                                    <th class="p-2.5">Catatan / Pelanggan</th>
-                                    <th class="p-2.5">Bukti Foto</th>
-                                    <th class="p-2.5">Poin</th>
-                                    <th class="p-2.5">Status</th>
-                                </tr>
-                            </thead>
-                            <tbody>`;
-
-                        sortedData.forEach(row => {
-                            let badgeStyle = "bg-amber-50 text-amber-600";
-                            if (row.status === "Approved") badgeStyle = "bg-emerald-50 text-emerald-600";
-                            if (row.status.includes("Reject")) badgeStyle = "bg-rose-50 text-rose-600";
-
-                            let photoLink = row.fileUrl && row.fileUrl.startsWith("http") 
-                                ? `<a href="${row.fileUrl}" target="_blank" class="text-blue-600 font-bold hover:underline">Lihat Foto</a>` 
-                                : `-`;
-
-                            let statusBadge = "";
-                            if (canApprove) {
-                                let btnClass = 'bg-amber-100 text-amber-700 hover:bg-amber-200';
-                                if (row.status === 'Approved') btnClass = 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200';
-                                if (row.status.includes('Reject')) btnClass = 'bg-rose-100 text-rose-700 hover:bg-rose-200';
-
-                                statusBadge = `<button onclick="toggleReviewClaimStatus(this, ${row.rowIndex})" class="px-2 py-1 rounded text-[10px] font-bold transition ${btnClass}">${row.status}</button>`;
-                            } else {
-                                statusBadge = `<span class="px-2 py-0.5 rounded text-[10px] font-semibold ${badgeStyle}">${row.status}</span>`;
-                            }
-
-                            html += `<tr class="border-b border-slate-100 hover:bg-slate-50">
-                                ${canApprove ? `<td class="p-2.5 font-semibold text-slate-700">${row.name}</td><td class="p-2.5 text-slate-500 whitespace-nowrap">${row.statusArea || '-'}</td>` : ''}
-                                <td class="p-2.5 text-slate-600 whitespace-nowrap">${row.timestamp}</td>
-                                <td class="p-2.5 text-slate-600">${row.customerNote}</td>
-                                <td class="p-2.5">${photoLink}</td>
-                                <td class="p-2.5 font-bold text-amber-600">+${row.points}</td>
-                                <td class="p-2.5">${statusBadge}</td>
-                            </tr>`;
-                        });
-
-                        html += `</tbody></table>`;
-                        if (totalData > 15) {
-                            html += `<div class="text-center text-[11px] text-slate-400 mt-2">Menampilkan 15 klaim terakhir dari total ${totalData} data.</div>`;
-                        }
-                        if (container) container.innerHTML = html;
-                    } else {
-                        if (badge) badge.innerText = `0 Klaim`;
-                        if (container) container.innerHTML = `<div class="text-center text-slate-400 py-3 text-xs">Belum ada riwayat klaim poin Google Review untuk cakupan ini.</div>`;
-                    }
+                    reviewClaimsCache = totalData > 0 ? result.data.slice().reverse() : [];
+                    renderReviewClaimsPage();
                 }
             } catch (err) {
                 if (container) container.innerHTML = `<div class="text-center text-red-500 py-3 text-xs">Gagal memuat data klaim review.</div>`;
@@ -671,6 +783,8 @@
         }
 
         function toggleReviewClaimStatus(btn, rowIndex) {
+            if (!enforceSessionValidity(true)) return;
+
             let currentText = btn.innerText;
             let nextStatus = currentText === 'Pending' ? 'Approved' : (currentText === 'Approved' ? 'Rejected' : 'Pending');
             let nextClass = nextStatus === 'Approved' ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200' : (nextStatus === 'Rejected' ? 'bg-rose-100 text-rose-700 hover:bg-rose-200' : 'bg-amber-100 text-amber-700 hover:bg-amber-200');
@@ -685,6 +799,7 @@
         }
 
         function openPermissionModal() {
+            if (!enforceSessionValidity(true)) return;
             document.getElementById('permissionModal').classList.remove('hidden');
             validateForm();
         }
@@ -695,6 +810,8 @@
 
         async function handlePermissionSubmit(e) {
             e.preventDefault();
+            if (!enforceSessionValidity(true)) return;
+
             const btn = document.getElementById('submitPermBtn');
             btn.disabled = true;
             btn.innerText = "Mengirim...";
@@ -756,6 +873,8 @@
         }
 
         async function fetchPermissions() {
+            if (!enforceSessionValidity(true)) return;
+
             const container = document.getElementById('permissionTableContainer');
             const badge = document.getElementById('permCountBadge');
             
@@ -839,6 +958,8 @@
         }
 
         function togglePermissionStatus(btn, rowIndex) {
+            if (!enforceSessionValidity(true)) return;
+
             let currentText = btn.innerText;
             let nextStatus = currentText === 'Pending' ? 'Approved' : (currentText === 'Approved' ? 'Rejected' : 'Pending');
             let nextClass = nextStatus === 'Approved' ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200' : (nextStatus === 'Rejected' ? 'bg-rose-100 text-rose-700 hover:bg-rose-200' : 'bg-amber-100 text-amber-700 hover:bg-amber-200');
@@ -853,6 +974,8 @@
         }
 
         async function fetchAttendanceData(user) {
+            if (!enforceSessionValidity(true)) return;
+
             const container = document.getElementById('accordionContainer');
             if (container) container.innerHTML = `<div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 text-center text-slate-400">Memuat data dari Google Sheet...</div>`;
 
@@ -1054,6 +1177,8 @@
         }
 
         function toggleOvertime(btn, rowIndex) {
+            if (!enforceSessionValidity(true)) return;
+
             let currentText = btn.innerText;
             let nextStatus = "";
             let nextClass = "";
@@ -1085,21 +1210,46 @@
             if (icon) icon.classList.toggle('rotate-180');
         }
 
-        function logout() {
+        function logout(resetLoginFields = true) {
             currentUserData = null;
             selectedBranchFilter = "ALL";
-            localStorage.removeItem('user');
+            reviewClaimsCache = [];
+            currentReviewPage = 1;
+            localStorage.removeItem(SESSION_STORAGE_KEY);
+            localStorage.removeItem("user");
             document.getElementById('dashboardPage').classList.add('hidden');
             document.getElementById('loginPage').classList.remove('hidden');
-            document.getElementById('username').value = "";
-            document.getElementById('password').value = "";
+            if (resetLoginFields) {
+                document.getElementById('username').value = "";
+                document.getElementById('password').value = "";
+            }
         }
 
+        document.addEventListener("visibilitychange", function() {
+            if (!document.hidden && currentUserData) {
+                enforceSessionValidity(true);
+            }
+        });
+
+        window.addEventListener("focus", function() {
+            if (currentUserData) {
+                enforceSessionValidity(true);
+            }
+        });
+
+        setInterval(function() {
+            if (currentUserData) {
+                enforceSessionValidity(true);
+            }
+        }, 60 * 1000);
+
         window.onload = function() {
-            const savedUser = localStorage.getItem('user');
-            if (savedUser) {
-                currentUserData = JSON.parse(savedUser);
-                loadDashboard(currentUserData);
+            const validUser = getValidSession();
+            if (validUser) {
+                currentUserData = validUser;
+                loadDashboard(validUser);
+            } else {
+                logout(false);
             }
         }
     </script>
